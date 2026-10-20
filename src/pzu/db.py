@@ -51,6 +51,32 @@ forecast_accuracy = Table(
 )
 
 
+GEN_COLS = ["gen_nuclear_mw", "gen_hydro_res_mw", "gen_hydro_ror_mw", "gen_gas_mw", "gen_coal_mw"]
+generation_actual = Table(
+    "generation_actual", metadata,
+    Column("timestamp", TS, primary_key=True),
+    *[Column(c, Float) for c in GEN_COLS],
+)
+
+# Documente de indisponibilitate (ENTSO-E A77/A80): se pastreaza momentul crearii, ca sa putem
+# reconstrui ce se stia la ora prognozei (fara informatii aparute dupa).
+outages = Table(
+    "outages", metadata,
+    Column("mrid", String(40), primary_key=True),
+    Column("revision", String(10), primary_key=True),
+    Column("resource_id", String(40), primary_key=True),
+    Column("start", TS, primary_key=True),
+    Column("zone", String(2)),
+    Column("created", TS),
+    Column("end", TS),
+    Column("plant_type", String(60)),
+    Column("business_type", String(40)),
+    Column("doc_status", String(20)),
+    Column("nominal_mw", Float),
+    Column("available_mw", Float),
+)
+
+
 def get_engine(url: str | None = None) -> Engine:
     return create_engine(url or get_settings().database_url, future=True)
 

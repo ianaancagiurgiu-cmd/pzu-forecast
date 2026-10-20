@@ -56,6 +56,14 @@ EXPERIMENTAL_SPECS: dict[str, tuple[str, int]] = {
     "lag24_dev": ("lag", 24),   # pretul de ieri la aceeasi ora fata de media zilei de ieri (forma zilei)
 }
 EXPERIMENTAL = list(EXPERIMENTAL_SPECS)
+
+# Date suplimentare ENTSO-E (productie pe tipuri + indisponibilitati). Pentru productie: lag 24h.
+# Pentru indisponibilitati: doar documentele create inainte de 06:00 din ziua D (D = ziua dinaintea celei prognozate).
+GEN_FEATURES = [c.replace("_mw", "_lag24h") for c in ("gen_nuclear_mw", "gen_hydro_res_mw", "gen_hydro_ror_mw",
+                                                      "gen_gas_mw", "gen_coal_mw")]
+OUTAGE_FEATURES = ["outage_ro_total_mw", "outage_ro_nuclear_mw", "outage_ro_hydro_mw", "outage_ro_thermal_mw",
+                   "outage_ro_unplanned_mw", "outage_hu_total_mw", "outage_bg_total_mw"]
+OUTAGE_CUTOFF_HOURS = 6   # ora locala din ziua D pana la care documentele sunt considerate cunoscute
 INPUT_FEATURES = [f for f, (kind, _) in FEATURE_SPECS.items() if kind == "forecast" and f != "residual_load"]
 
 
@@ -84,7 +92,64 @@ def _prev_day_stats(ro: pd.Series | None, local_index: pd.DatetimeIndex) -> dict
     return {k: got[k].to_numpy(dtype=float) for k in ("mean", "min", "max", "std")}
 
 
-def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.DatetimeIndex) -> pd.DataFrame:
+def _category(plant_type: str | None, business: str | None) -> set[str]:
+    cats = set()
+    pt = (plant_type or "").lower()
+    if "nuclear" in pt:
+        cats.add("nuclear")
+    if "hydro" in pt:
+        cats.add("hydro")
+    if "fossil" in pt:
+        cats.add("thermal")
+    if "unplanned" in (business or "").lower():
+        cats.add("unplanned")
+    return cats
+
+
+def outage_features(outages: pd.DataFrame | None, index: pd.DatetimeIndex) -> pd.DataFrame:
+    """MW indisponibili la fiecare interval, folosind DOAR documentele create inainte de 06:00 din ziua D
+    (D = ziua locala dinaintea zilei intervalului); la mai multe revizii se ia ultima cunoscuta atunci."""
+    cols = {c: np.full(len(index), np.nan) for c in OUTAGE_FEATURES}
+    if outages is None or outages.empty:
+        return pd.DataFrame(cols, index=index)
+    docs = outages.copy()
+    bad = docs["doc_status"].fillna("").str.lower().str.contains("cancel|withdraw")
+    docs = docs[~bad].copy()
+    docs["unavail"] = (docs["nominal_mw"] - docs["available_mw"]).clip(lower=0).fillna(0)
+    docs["rev"] = pd.to_numeric(docs["revision"], errors="coerce").fillna(0)
+    docs["cats"] = [_category(p, b) for p, b in zip(docs["plant_type"], docs["business_type"])]
+    local = to_local(index)
+    pos = np.arange(len(index))
+    days = pd.Series(local.date, index=pos)
+    for day, ix in days.groupby(days).groups.items():
+        day_start = pd.Timestamp(day, tz=local.tz)
+        cutoff = day_start - pd.Timedelta(hours=24 - OUTAGE_CUTOFF_HOURS)
+        t = index[list(ix)]
+        known = docs[(docs["created"] <= cutoff) & (docs["end"] > t.min()) & (docs["start"] <= t.max())]
+        if known.empty:
+            for c in cols.values():
+                c[list(ix)] = 0.0
+            continue
+        known = known[known["rev"] == known.groupby("mrid")["rev"].transform("max")]
+        acc = {c: np.zeros(len(t)) for c in OUTAGE_FEATURES}
+        for r in known.itertuples():
+            m = (t >= r.start) & (t < r.end)
+            if not m.any():
+                continue
+            z = r.zone.lower()
+            if z == "ro":
+                acc["outage_ro_total_mw"][m] += r.unavail
+                for cat in r.cats:
+                    acc[f"outage_ro_{cat}_mw"][m] += r.unavail
+            elif z in ("hu", "bg"):
+                acc[f"outage_{z}_total_mw"][m] += r.unavail
+        for c, v in acc.items():
+            cols[c][list(ix)] = v
+    return pd.DataFrame(cols, index=index)
+
+
+def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.DatetimeIndex,
+                   gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None) -> pd.DataFrame:
     """Matricea de feature-uri pentru `index` (UTC). `prices`: format lat, coloane = zone."""
     assert_no_leakage()
     index = pd.DatetimeIndex(index)
@@ -119,25 +184,33 @@ def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.Datetim
         s = prices[z] if z in prices else None
         out[f"price_{z.lower()}_lag_24h"] = _lag(s, index, H24)
         out[f"price_{z.lower()}_lag_7d"] = _lag(s, index, 7 * H24)
-    return out[FEATURES + EXPERIMENTAL]
+    for col in GEN_FEATURES:
+        src = col.replace("_lag24h", "_mw")
+        out[col] = _lag(gen[src] if gen is not None and src in gen else None, index, H24)
+    out = out.join(outage_features(outages, index))
+    return out[FEATURES + EXPERIMENTAL + GEN_FEATURES + OUTAGE_FEATURES]
 
 
-def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day) -> None:
+def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day, **extra) -> None:
     """Test dinamic: matricea pentru ziua tinta trebuie sa fie identica daca ascundem
     toate preturile de la inceputul zilei tinta incolo."""
     idx = day_index(target_day)
-    full = build_features(inputs, prices, idx)
-    cut = build_features(inputs, prices[prices.index < idx[0]], idx)
+    full = build_features(inputs, prices, idx, **extra)
+    cut_extra = dict(extra)
+    if extra.get("gen") is not None:
+        cut_extra["gen"] = extra["gen"][extra["gen"].index < idx[0]]
+    cut = build_features(inputs, prices[prices.index < idx[0]], idx, **cut_extra)
     pd.testing.assert_frame_equal(full, cut)
 
 
-def build_training_set(inputs: pd.DataFrame, prices: pd.DataFrame, dropna_target: bool = True):
+def build_training_set(inputs: pd.DataFrame, prices: pd.DataFrame, dropna_target: bool = True,
+                       gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None):
     """(X, y) pe toate intervalele unde exista pret RO si forecast-uri de intrare."""
     idx = inputs.index
     if "RO" not in prices:
         raise ValueError("Lipsesc preturile RO")
     y = prices["RO"].reindex(idx)
-    X = build_features(inputs, prices, idx)
+    X = build_features(inputs, prices, idx, gen=gen, outages=outages)
     mask = y.notna() & X["residual_load"].notna() & X["price_lag_24h"].notna()
     if not dropna_target:
         return X, y

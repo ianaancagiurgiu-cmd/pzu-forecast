@@ -113,3 +113,52 @@ def fetch_inputs(client: _Client, start, end) -> pd.DataFrame:
     ]
     parts = [p for p in parts if not p.empty]
     return pd.concat(parts, axis=1) if parts else pd.DataFrame()
+
+
+# ---------------------------------------------------------------- extra: mix de productie si indisponibilitati
+GEN_MAP = {
+    "gen_nuclear_mw": ["Nuclear"],
+    "gen_hydro_res_mw": ["Hydro Water Reservoir"],
+    "gen_hydro_ror_mw": ["Hydro Run-of-river and pondage"],
+    "gen_gas_mw": ["Fossil Gas"],
+    "gen_coal_mw": ["Fossil Brown coal/Lignite", "Fossil Hard coal"],
+}
+
+
+def fetch_generation_mix(client, start, end, zone: str = "RO") -> pd.DataFrame:
+    """Productia REALA pe tipuri (MW). Se publica cu intarziere: in modele se foloseste doar cu lag >= 24h."""
+    s, e = _span(start, end)
+    raw = _safe(client.query_generation, zone, start=s, end=e, what="productie pe tipuri")
+    if raw is None or len(raw) == 0:
+        return pd.DataFrame(columns=list(GEN_MAP))
+    if isinstance(raw.columns, pd.MultiIndex):   # (tip, "Actual Aggregated") + (tip, "Actual Consumption")
+        raw = raw.loc[:, [c for c in raw.columns if c[1] != "Actual Consumption"]]
+        raw.columns = raw.columns.get_level_values(0)
+    out = pd.DataFrame(index=raw.index)
+    for col, names in GEN_MAP.items():
+        have = [n for n in names if n in raw.columns]
+        out[col] = raw[have].sum(axis=1, min_count=1) if have else float("nan")
+    return to_15min(out.astype(float))
+
+
+OUTAGE_COLS = {"mrid": "mrid", "revision": "revision", "production_resource_id": "resource_id", "start": "start",
+               "end": "end", "plant_type": "plant_type", "businesstype": "business_type", "docstatus": "doc_status",
+               "nominal_power": "nominal_mw", "avail_qty": "available_mw"}
+
+
+def fetch_outages(client, start, end, zone: str = "RO") -> pd.DataFrame:
+    """Documente de indisponibilitate a unitatilor de productie (cu momentul crearii)."""
+    s, e = _span(start, end)
+    raw = _safe(client.query_unavailability_of_generation_units, zone, start=s, end=e, what=f"indisponibilitati {zone}")
+    if raw is None or len(raw) == 0:
+        return pd.DataFrame(columns=[*OUTAGE_COLS.values(), "created", "zone"])
+    df = raw.rename(columns=OUTAGE_COLS)
+    df["created"] = pd.to_datetime(raw.index, utc=True)
+    df["zone"] = zone
+    for c in ("start", "end"):
+        df[c] = pd.to_datetime(df[c], utc=True)
+    df["revision"] = df["revision"].astype(str)
+    df["doc_status"] = df["doc_status"].astype(object).where(df["doc_status"].notna(), None)
+    keep = ["mrid", "revision", "resource_id", "start", "zone", "created", "end", "plant_type", "business_type",
+            "doc_status", "nominal_mw", "available_mw"]
+    return df[keep].drop_duplicates(["mrid", "revision", "resource_id", "start"]).reset_index(drop=True)

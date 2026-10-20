@@ -13,6 +13,13 @@ from pzu import backtest, db, features as F, metrics, value as V
 
 OLD = list(F.FEATURES)
 NEW = OLD + F.EXPERIMENTAL
+EXTRAS_SETS = {
+    "A. referinta (setul de productie)": dict(cols=OLD),
+    "F. + productie pe tipuri (lag 24h)": dict(cols=OLD + F.GEN_FEATURES),
+    "G. + indisponibilitati RO/HU/BG": dict(cols=OLD + F.OUTAGE_FEATURES),
+    "H. + productie + indisponibilitati": dict(cols=OLD + F.GEN_FEATURES + F.OUTAGE_FEATURES),
+    "I. H, corectie la media 7z": dict(cols=OLD + F.GEN_FEATURES + F.OUTAGE_FEATURES, target="residual"),
+}
 VARIANTS = {
     "A. nivel, variabile vechi": dict(cols=OLD),
     "B. nivel, variabile noi": dict(cols=NEW),
@@ -38,17 +45,27 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--trees", type=int, default=500)
+    ap.add_argument("--set", choices=["base", "extras"], default="base")
     a = ap.parse_args()
+    variants = VARIANTS if a.set == "base" else EXTRAS_SETS
     eng = db.get_engine()
     db.ensure_real_data(eng)
-    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng))
+    kw = {}
+    if a.set == "extras":
+        kw["gen"] = db.read_df(eng, db.generation_actual)
+        o = db.read_df(eng, db.outages, index=None)
+        for c in ("start", "end", "created"):
+            o[c] = pd.to_datetime(o[c], utc=True)
+        kw["outages"] = o
+        print(f"productie: {len(kw['gen'])} intervale; indisponibilitati: {len(o)} documente")
+    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng), **kw)
     out = {}
     for period, offset in (("dezvoltare", a.days), ("holdout", 0)):
         bt = None
         cols = []
-        for name, kw in VARIANTS.items():
+        for name, vkw in variants.items():
             part = backtest.walk_forward(X, y, 60, a.days, refit_every=7, end_offset_days=offset,
-                                         n_estimators=a.trees, **kw)[["y", "pred"]].rename(columns={"pred": name})
+                                         n_estimators=a.trees, **vkw)[["y", "pred"]].rename(columns={"pred": name})
             bt = part if bt is None else bt.join(part[name])
             cols.append(name)
         base = backtest.walk_forward(X, y, 60, a.days, refit_every=10**6, end_offset_days=offset, n_estimators=5)
@@ -60,7 +77,7 @@ def main() -> None:
         out[period] = res
         print(f"\n=== {period}: {bt.index.min().date()} .. {bt.index.max().date()} ===")
         print(res.round(1).to_string())
-    Path("reports/experiments.json").write_text(json.dumps({k: v.round(2).to_dict("index") for k, v in out.items()},
+    Path(f"reports/experiments_{a.set}.json").write_text(json.dumps({k: v.round(2).to_dict("index") for k, v in out.items()},
                                                           indent=2, ensure_ascii=False))
 
 

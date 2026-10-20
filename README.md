@@ -66,7 +66,7 @@ mix 50/50 cu media pe 7 zile. **Niciuna nu a bătut media pe 7 zile pe valoarea 
 88–90% pentru media pe 7 zile), deși eroarea medie scade de la ~33 la ~27 EUR/MWh. Variabilele noi nu au ajutat
 și rămân doar experimentale (`EXPERIMENTAL`). Concluzie: în piața asta forma zilei e foarte persistentă; un
 forecast mai bun cere informație nouă (indisponibilități, combustibili), nu mai multă ingineria acelorași date.
-Rezultate: `reports/experiments.json`.
+Rezultate: `reports/experiments_base.json`.
 
 ## Rulare
 ```bash
