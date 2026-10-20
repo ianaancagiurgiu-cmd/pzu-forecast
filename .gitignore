@@ -6,3 +6,4 @@ __pycache__/
 models/
 *.egg-info/
 site/
+reports/_gen_*.csv

@@ -52,6 +52,12 @@ Alternativ, pe un server propriu: Postgres (`DATABASE_URL`) + `docker compose up
 `GET /api/v1/forecast/pzu?date=YYYY-MM-DD`, `/summary`, `/export?format=csv|xlsx`, `/api/v1/forecast/dates`,
 `/api/v1/accuracy?days=30`, `/health`. Dashboard la `/`. **Fără autentificare** în v1: nu expune API-ul public.
 
+## Raport de valoare
+`python scripts/value_report.py` simulează decizii (baterie 10 MW 2h/4h, parc solar/eolian 100 MW) luate cu prognoza,
+evaluate la prețurile reale, și le compară cu strategii simple („prețul de ieri”, media pe 7 zile). Activele sunt
+ipotetice; ENTSO-E nu publică producția pe centrale individuale pentru România, deci parcurile folosesc profilul
+național real. Rezultatul actual e în `reports/value_report.html`.
+
 ## Rulare
 ```bash
 pip install -e ".[dev]"
