@@ -1,0 +1,34 @@
+[project]
+name = "pzu-forecast"
+version = "0.1.0"
+description = "Forecast PZU Romania D+1 (96 intervale de 15 minute)"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "lightgbm>=4.3",
+    "scikit-learn>=1.4",
+    "entsoe-py>=0.6",
+    "httpx>=0.27",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "pydantic-settings>=2.2",
+    "holidays>=0.50",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

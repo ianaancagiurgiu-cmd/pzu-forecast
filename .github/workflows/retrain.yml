@@ -1,0 +1,25 @@
+name: Weekly retrain
+# Duminica 02:00-03:00 ora Romaniei (00:00 UTC)
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+concurrency: { group: pzu-db, cancel-in-progress: false }
+permissions:
+  contents: write
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DATABASE_URL: sqlite:///pzu.db
+      ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - run: scripts/ci_db.sh pull
+      - run: python -m pzu.pipeline retrain
+      - run: scripts/ci_db.sh push

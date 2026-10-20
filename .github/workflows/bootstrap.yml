@@ -1,0 +1,43 @@
+name: Bootstrap (o singura data)
+# Construieste baza de date (24 luni de istoric ENTSO-E) si primul model, apoi le urca in release-ul `data-latest`.
+# Dureaza ~1 ora. Ruleaza manual: Actions -> Bootstrap -> Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Suprascrie baza de date existenta din release"
+        type: boolean
+        default: false
+concurrency: { group: pzu-db, cancel-in-progress: false }
+permissions:
+  contents: write
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DATABASE_URL: sqlite:///pzu.db
+      ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - name: Refuz suprascrierea accidentala
+        run: |
+          scripts/ci_db.sh pull --optional
+          if [ -f pzu.db ] && [ "${{ inputs.force }}" != "true" ]; then
+            echo "::error::Exista deja o baza de date in release. Bifeaza 'force' daca vrei sa o inlocuiesti."; exit 1
+          fi
+          rm -f pzu.db pzu.db.sha
+      - name: Istoric 24 luni (ENTSO-E + Open-Meteo)
+        run: python scripts/backfill.py --months 24
+      - name: Primul model (backtest + antrenare)
+        run: python -m pzu.pipeline retrain
+      - name: Forecast initial + dashboard
+        run: |
+          python -m pzu.pipeline daily || true
+          python scripts/export_static.py
+      - name: Urca in release
+        run: scripts/ci_db.sh push site/dashboard.html

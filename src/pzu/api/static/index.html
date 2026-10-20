@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Forecast PZU Romania</title>
+<style>
+:root{--bg:#fff;--fg:#1d1d1f;--mute:#6b6b70;--line:#e3e3e6;--card:#f7f7f8;--acc:#c1121f;--band:#c1121f22;--warn:#fff3cd;--warnfg:#664d03}
+@media(prefers-color-scheme:dark){:root{--bg:#161618;--fg:#eee;--mute:#9a9aa0;--line:#2e2e33;--card:#202024;--acc:#ff6b6b;--band:#ff6b6b2a;--warn:#3a2f00;--warnfg:#ffd96a}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1040px;margin:auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:26px 0 8px}
+.sub{color:var(--mute);font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+select,button,a.btn{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);text-decoration:none;cursor:pointer}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border-radius:8px;padding:10px 12px}.kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mute)}
+svg{width:100%;height:auto;display:block}svg text{font-size:11px;fill:var(--mute)}.grid{stroke:var(--line)}
+.tbl{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{position:sticky;top:0;background:var(--card)}td:first-child,th:first-child{text-align:left}
+.warn{background:var(--warn);color:var(--warnfg);padding:8px 12px;border-radius:6px;font-size:13px;margin-top:22px}
+#err{color:var(--acc)}
+</style>
+</head>
+<body><main>
+<h1>Forecast PZU România &mdash; D+1</h1>
+<div class="sub" id="meta">Se încarcă...</div>
+<div class="bar">
+  <label>Ziua: <select id="day"></select></label>
+  <a class="btn" id="csv">Export CSV</a><a class="btn" id="xlsx">Export Excel</a>
+  <span id="err"></span>
+</div>
+<div class="kpis" id="kpis"></div>
+<h2>Preț prognozat pe 96 de intervale (EUR/MWh), cu interval de încredere 90%</h2>
+<div id="chart"></div>
+<h2>Intervale</h2>
+<div class="tbl"><table><thead><tr><th>Interval</th><th>Preț</th><th>Min 90%</th><th>Max 90%</th><th>Față de medie</th></tr></thead><tbody id="rows"></tbody></table></div>
+<h2>Acuratețe: MAE zilnic, ultimele 30 de zile</h2>
+<div id="acc" class="sub"></div>
+<p class="warn">Forecast-ul este o estimare statistică și nu garantează profit; execuția, costurile și riscul de piață rămân în responsabilitatea utilizatorului.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id), fmt=(v,d=1)=>Number(v).toFixed(d);
+const STATIC=typeof window.PZU_DATA!=="undefined";
+async function j(u){
+  if(STATIC){ // pagina autonoma: datele sunt incluse in fisier
+    const D=window.PZU_DATA,url=new URL(u,"http://x"),day=url.searchParams.get("date"),p=url.pathname;
+    if(p.endsWith("/dates"))return {dates:D.dates};
+    if(p.endsWith("/accuracy"))return D.accuracy;
+    const v=(p.endsWith("/summary")?D.summary:D.forecast)[day];if(!v)throw new Error("Nu exista forecast pentru "+day);return v;
+  }
+  const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()}
+function csvLink(f){ // export CSV fara server
+  const rows=["start,predicted_price,ci_90_lower,ci_90_upper",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper].join(","))];
+  return URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
+}
+const hhmm=s=>s.slice(11,16);
+function chart(el,series,opts){ // series: [{y:[],lo:[],hi:[],color,bars}]
+  const W=1000,H=300,P=44,all=series.flatMap(s=>[...s.y,...(s.lo||[]),...(s.hi||[])]);
+  let lo=Math.min(...all,0),hi=Math.max(...all);const sp=(hi-lo)||1,n=series[0].y.length;
+  const sx=i=>P+i*(W-2*P)/Math.max(n-1,1),sy=v=>H-P-(v-lo)/sp*(H-2*P);
+  let g=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.label}">`;
+  for(let k=0;k<=4;k++){const v=lo+sp*k/4;g+=`<line class="grid" x1="${P}" x2="${W-P}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${P-6}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}
+  (opts.ticks||[]).forEach(([i,t])=>{g+=`<text x="${sx(i)}" y="${H-P+16}" text-anchor="middle">${t}</text>`});
+  series.forEach(s=>{
+    if(s.lo){const up=s.hi.map((v,i)=>`${sx(i)},${sy(v)}`).join(" "),dn=s.lo.map((v,i)=>`${sx(i)},${sy(v)}`).reverse().join(" ");g+=`<polygon points="${up} ${dn}" fill="var(--band)"/>`}
+    if(s.bars){const w=(W-2*P)/n*0.7;s.y.forEach((v,i)=>{g+=`<rect x="${sx(i)-w/2}" y="${Math.min(sy(v),sy(0))}" width="${w}" height="${Math.abs(sy(v)-sy(0))}" fill="${s.color}"><title>${opts.titles[i]}: ${fmt(v)}</title></rect>`})}
+    else g+=`<polyline fill="none" stroke="${s.color}" stroke-width="2" points="${s.y.map((v,i)=>`${sx(i)},${sy(v)}`).join(" ")}"/>`;
+  });
+  el.innerHTML=g+"</svg>";
+}
+async function load(day){
+  $("err").textContent="";
+  try{
+    const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
+    $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`;
+    if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
+    else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
+    $("kpis").innerHTML=[["Preț mediu",fmt(s.mean)],["Minim",fmt(s.min)],["Maxim",fmt(s.max)],["Spread zilnic",fmt(s.spread)],
+      ["Ore sub 30 EUR/MWh",fmt(s.hours_below_30)],["Ore peste 150 EUR/MWh",fmt(s.hours_above_150)]].map(([a,b])=>`<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
+    const it=f.intervals,ticks=it.map((x,i)=>[i,hhmm(x.start)]).filter(([i])=>i%12==0);
+    chart($("chart"),[{y:it.map(x=>x.predicted_price),lo:it.map(x=>x.ci_90_lower),hi:it.map(x=>x.ci_90_upper),color:"var(--acc)"}],{label:"Forecast PZU",ticks});
+    $("rows").innerHTML=it.map(x=>`<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>${fmt(x.predicted_price)}</td><td>${fmt(x.ci_90_lower)}</td><td>${fmt(x.ci_90_upper)}</td><td>${(x.predicted_price-s.mean>=0?"+":"")+fmt(x.predicted_price-s.mean)}</td></tr>`).join("");
+  }catch(e){$("err").textContent=e.message}
+}
+async function acc(){
+  const a=await j("/api/v1/accuracy?days=30");
+  if(!a.items.length){$("acc").textContent="Încă nu există zile evaluate (evaluarea rulează zilnic după publicarea rezultatelor oficiale).";return}
+  $("acc").innerHTML=`MAE mediu: <b>${fmt(a.mean_mae)}</b> EUR/MWh pe ${a.days} zile`;
+  const d=document.createElement("div");$("acc").appendChild(d);
+  chart(d,[{y:a.items.map(x=>x.mae),color:"var(--acc)",bars:true}],{label:"MAE zilnic",titles:a.items.map(x=>x.forecast_date),ticks:a.items.map((x,i)=>[i,x.forecast_date.slice(5)]).filter((_,i)=>i%5==0)});
+}
+(async()=>{
+  const {dates}=await j("/api/v1/forecast/dates");
+  if(!dates.length){$("meta").textContent="Nu există încă niciun forecast generat.";return}
+  $("day").innerHTML=dates.map(d=>`<option>${d}</option>`).join("");
+  $("day").onchange=e=>load(e.target.value);load(dates[0]);acc();
+})();
+</script></body></html>

@@ -1,0 +1,113 @@
+{
+  "window_60d": {
+    "n_days": 90,
+    "n_intervals": 8640,
+    "lightgbm": {
+      "mae": 26.433837644330197,
+      "rmse": 37.70814631633896,
+      "smape": 25.725337271950455,
+      "directional_hit_rate": 0.6888279643591501,
+      "coverage_90": 0.8832236842105263
+    },
+    "naive_lag24h": {
+      "mae": 32.798002314814816,
+      "rmse": 49.416279255320454,
+      "smape": 34.472584303285544,
+      "directional_hit_rate": 0.6990392406528534
+    },
+    "naive_lag7d": {
+      "mae": 39.21290162037037,
+      "rmse": 55.84744625231392,
+      "smape": 38.50947574433092,
+      "directional_hit_rate": 0.7034378979048501
+    },
+    "naive_mean7d": {
+      "mae": 33.76745089285714,
+      "rmse": 46.08805139123839,
+      "smape": 31.427221632304203,
+      "directional_hit_rate": 0.7541382104410232
+    },
+    "coverage_days": 76,
+    "targets_met": {
+      "mae": false,
+      "rmse": false,
+      "smape": false,
+      "directional_hit_rate": true,
+      "coverage_90": true
+    }
+  },
+  "window_180d": {
+    "n_days": 90,
+    "n_intervals": 8640,
+    "lightgbm": {
+      "mae": 27.42572183287873,
+      "rmse": 39.327236937909305,
+      "smape": 26.243212557337042,
+      "directional_hit_rate": 0.6892392049348869,
+      "coverage_90": 0.8744517543859649
+    },
+    "naive_lag24h": {
+      "mae": 32.798002314814816,
+      "rmse": 49.416279255320454,
+      "smape": 34.472584303285544,
+      "directional_hit_rate": 0.6990392406528534
+    },
+    "naive_lag7d": {
+      "mae": 39.21290162037037,
+      "rmse": 55.84744625231392,
+      "smape": 38.50947574433092,
+      "directional_hit_rate": 0.7034378979048501
+    },
+    "naive_mean7d": {
+      "mae": 33.76745089285714,
+      "rmse": 46.08805139123839,
+      "smape": 31.427221632304203,
+      "directional_hit_rate": 0.7541382104410232
+    },
+    "coverage_days": 76,
+    "targets_met": {
+      "mae": false,
+      "rmse": false,
+      "smape": false,
+      "directional_hit_rate": true,
+      "coverage_90": true
+    }
+  },
+  "window_365d": {
+    "n_days": 90,
+    "n_intervals": 8640,
+    "lightgbm": {
+      "mae": 28.203613223544394,
+      "rmse": 40.38511620679819,
+      "smape": 26.73537779683222,
+      "directional_hit_rate": 0.6965044551062372,
+      "coverage_90": 0.8699287280701754
+    },
+    "naive_lag24h": {
+      "mae": 32.798002314814816,
+      "rmse": 49.416279255320454,
+      "smape": 34.472584303285544,
+      "directional_hit_rate": 0.6990392406528534
+    },
+    "naive_lag7d": {
+      "mae": 39.21290162037037,
+      "rmse": 55.84744625231392,
+      "smape": 38.50947574433092,
+      "directional_hit_rate": 0.7034378979048501
+    },
+    "naive_mean7d": {
+      "mae": 33.76745089285714,
+      "rmse": 46.08805139123839,
+      "smape": 31.427221632304203,
+      "directional_hit_rate": 0.7541382104410232
+    },
+    "coverage_days": 76,
+    "targets_met": {
+      "mae": false,
+      "rmse": false,
+      "smape": false,
+      "directional_hit_rate": true,
+      "coverage_90": true
+    }
+  }
+}
