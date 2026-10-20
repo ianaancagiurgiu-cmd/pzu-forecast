@@ -110,3 +110,12 @@ def test_features_with_extras_pass_dynamic_leakage_check(synth):
     F.verify_no_leakage(inputs, prices, "2026-01-20", gen=gen, outages=docs)
     X = F.build_features(inputs, prices, day_index("2026-01-20"), gen=gen, outages=docs)
     assert (X["gen_nuclear_lag24h"] == 1400).all() and (X["outage_ro_nuclear_mw"] == 700).all()
+
+
+def test_cancellation_known_at_cutoff_removes_the_outage_but_later_one_does_not():
+    idx = day_index("2026-03-10")
+    orig = _doc("2026-03-01 10:00", "2026-03-09", "2026-03-12", mw=100, rev="1")
+    early_cancel = _doc("2026-03-08 10:00", "2026-03-09", "2026-03-12", mw=100, rev="2", status="Cancelled")
+    late_cancel = _doc("2026-03-09 09:00", "2026-03-09", "2026-03-12", mw=100, rev="2", status="Cancelled")
+    assert (F.outage_features(pd.DataFrame([orig, early_cancel]), idx)["outage_ro_total_mw"] == 0).all()
+    assert (F.outage_features(pd.DataFrame([orig, late_cancel]), idx)["outage_ro_total_mw"] == 100).all()

@@ -113,8 +113,7 @@ def outage_features(outages: pd.DataFrame | None, index: pd.DatetimeIndex) -> pd
     if outages is None or outages.empty:
         return pd.DataFrame(cols, index=index)
     docs = outages.copy()
-    bad = docs["doc_status"].fillna("").str.lower().str.contains("cancel|withdraw")
-    docs = docs[~bad].copy()
+    docs["cancelled"] = docs["doc_status"].fillna("").str.lower().str.contains("cancel|withdraw")
     docs["unavail"] = (docs["nominal_mw"] - docs["available_mw"]).clip(lower=0).fillna(0)
     docs["rev"] = pd.to_numeric(docs["revision"], errors="coerce").fillna(0)
     docs["cats"] = [_category(p, b) for p, b in zip(docs["plant_type"], docs["business_type"])]
@@ -130,7 +129,9 @@ def outage_features(outages: pd.DataFrame | None, index: pd.DatetimeIndex) -> pd
             for c in cols.values():
                 c[list(ix)] = 0.0
             continue
+        # ultima revizie cunoscuta la cutoff; daca ea anuleaza documentul, acesta nu mai conteaza
         known = known[known["rev"] == known.groupby("mrid")["rev"].transform("max")]
+        known = known[~known["cancelled"]]
         acc = {c: np.zeros(len(t)) for c in OUTAGE_FEATURES}
         for r in known.itertuples():
             m = (t >= r.start) & (t < r.end)

@@ -68,6 +68,13 @@ mix 50/50 cu media pe 7 zile. **Niciuna nu a bătut media pe 7 zile pe valoarea 
 forecast mai bun cere informație nouă (indisponibilități, combustibili), nu mai multă ingineria acelorași date.
 Rezultate: `reports/experiments_base.json`.
 
+A doua rundă (`--set extras`): producție reală pe tipuri (nuclear, hidro, gaz, cărbune; lag 24h) și indisponibilități
+de centrale RO/HU/BG, reconstruite „as-of” 06:00 (doar documente create până atunci, cu ultima revizie cunoscută și
+anulările respectate). Nici ele nu au îmbunătățit valoarea bateriei (85,9–86,8% din plafon față de 86,7–86,8% pentru
+referință; media pe 7 zile 87,7–89,5%) și au redus eroarea cu cel mult ~0,5 EUR/MWh, în zona zgomotului.
+Rezultate: `reports/experiments_extras.json`. Datele rămân în DB (`generation_actual`, `outages`), dar nu sunt
+folosite de modelul de producție.
+
 ## Rulare
 ```bash
 pip install -e ".[dev]"
