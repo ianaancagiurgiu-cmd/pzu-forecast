@@ -1,0 +1,150 @@
+{
+  "dezvoltare": {
+    "naive_lag24h": {
+      "MAE": 31.57,
+      "RMSE": 54.71,
+      "bateria_EUR": 300947.19,
+      "pct_plafon": 85.95
+    },
+    "naive_mean7d": {
+      "MAE": 33.59,
+      "RMSE": 57.69,
+      "bateria_EUR": 313535.62,
+      "pct_plafon": 89.55
+    },
+    "A. nivel, variabile vechi": {
+      "MAE": 27.09,
+      "RMSE": 46.8,
+      "bateria_EUR": 303534.03,
+      "pct_plafon": 86.69
+    },
+    "B. nivel, variabile noi": {
+      "MAE": 27.99,
+      "RMSE": 48.22,
+      "bateria_EUR": 304861.97,
+      "pct_plafon": 87.07
+    },
+    "C. corectie la media 7z, variabile noi": {
+      "MAE": 28.47,
+      "RMSE": 49.54,
+      "bateria_EUR": 308489.84,
+      "pct_plafon": 88.11
+    },
+    "D. corectie, obiectiv L1 (robust la varfuri)": {
+      "MAE": 28.1,
+      "RMSE": 50.45,
+      "bateria_EUR": 308328.08,
+      "pct_plafon": 88.06
+    },
+    "E. corectie, obiectiv Huber": {
+      "MAE": 28.02,
+      "RMSE": 48.93,
+      "bateria_EUR": 307274.62,
+      "pct_plafon": 87.76
+    },
+    "A. nivel, variabile vechi + media7z 50/50": {
+      "MAE": 28.14,
+      "RMSE": 49.13,
+      "bateria_EUR": 312971.5,
+      "pct_plafon": 89.39
+    },
+    "B. nivel, variabile noi + media7z 50/50": {
+      "MAE": 28.48,
+      "RMSE": 49.85,
+      "bateria_EUR": 312555.1,
+      "pct_plafon": 89.27
+    },
+    "C. corectie la media 7z, variabile noi + media7z 50/50": {
+      "MAE": 29.05,
+      "RMSE": 51.1,
+      "bateria_EUR": 312620.03,
+      "pct_plafon": 89.29
+    },
+    "D. corectie, obiectiv L1 (robust la varfuri) + media7z 50/50": {
+      "MAE": 29.36,
+      "RMSE": 52.16,
+      "bateria_EUR": 312620.0,
+      "pct_plafon": 89.29
+    },
+    "E. corectie, obiectiv Huber + media7z 50/50": {
+      "MAE": 29.08,
+      "RMSE": 51.16,
+      "bateria_EUR": 312701.07,
+      "pct_plafon": 89.31
+    }
+  },
+  "holdout": {
+    "naive_lag24h": {
+      "MAE": 32.93,
+      "RMSE": 49.59,
+      "bateria_EUR": 258210.7,
+      "pct_plafon": 80.59
+    },
+    "naive_mean7d": {
+      "MAE": 33.94,
+      "RMSE": 46.27,
+      "bateria_EUR": 280920.98,
+      "pct_plafon": 87.68
+    },
+    "A. nivel, variabile vechi": {
+      "MAE": 27.72,
+      "RMSE": 38.78,
+      "bateria_EUR": 278101.44,
+      "pct_plafon": 86.8
+    },
+    "B. nivel, variabile noi": {
+      "MAE": 27.59,
+      "RMSE": 39.33,
+      "bateria_EUR": 276791.06,
+      "pct_plafon": 86.39
+    },
+    "C. corectie la media 7z, variabile noi": {
+      "MAE": 26.85,
+      "RMSE": 38.01,
+      "bateria_EUR": 277480.9,
+      "pct_plafon": 86.61
+    },
+    "D. corectie, obiectiv L1 (robust la varfuri)": {
+      "MAE": 27.04,
+      "RMSE": 38.6,
+      "bateria_EUR": 278545.74,
+      "pct_plafon": 86.94
+    },
+    "E. corectie, obiectiv Huber": {
+      "MAE": 27.2,
+      "RMSE": 38.63,
+      "bateria_EUR": 278064.18,
+      "pct_plafon": 86.79
+    },
+    "A. nivel, variabile vechi + media7z 50/50": {
+      "MAE": 28.23,
+      "RMSE": 38.77,
+      "bateria_EUR": 283051.48,
+      "pct_plafon": 88.34
+    },
+    "B. nivel, variabile noi + media7z 50/50": {
+      "MAE": 28.12,
+      "RMSE": 38.94,
+      "bateria_EUR": 282949.79,
+      "pct_plafon": 88.31
+    },
+    "C. corectie la media 7z, variabile noi + media7z 50/50": {
+      "MAE": 28.07,
+      "RMSE": 38.95,
+      "bateria_EUR": 283149.93,
+      "pct_plafon": 88.37
+    },
+    "D. corectie, obiectiv L1 (robust la varfuri) + media7z 50/50": {
+      "MAE": 28.7,
+      "RMSE": 39.94,
+      "bateria_EUR": 282984.61,
+      "pct_plafon": 88.32
+    },
+    "E. corectie, obiectiv Huber + media7z 50/50": {
+      "MAE": 28.53,
+      "RMSE": 39.55,
+      "bateria_EUR": 283343.53,
+      "pct_plafon": 88.44
+    }
+  }
+}

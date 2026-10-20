@@ -58,6 +58,16 @@ evaluate la prețurile reale, și le compară cu strategii simple („prețul de
 ipotetice; ENTSO-E nu publică producția pe centrale individuale pentru România, deci parcurile folosesc profilul
 național real. Rezultatul actual e în `reports/value_report.html`.
 
+## Experimente de îmbunătățire (`scripts/experiments.py`)
+Protocol: variantele se compară pe o perioadă de dezvoltare (24 apr – 23 iul 2026) și se confirmă o singură dată pe
+holdout (23 iul – 20 oct 2026). Valoarea se măsoară pe baterie (10 MW / 2h), nu doar prin eroare.
+Variante: variabile noi (forma zilei precedente, lag 48h/14z), țintă „corecție la media pe 7 zile”, obiective L1/Huber,
+mix 50/50 cu media pe 7 zile. **Niciuna nu a bătut media pe 7 zile pe valoarea bateriei** (86–88% din plafon, față de
+88–90% pentru media pe 7 zile), deși eroarea medie scade de la ~33 la ~27 EUR/MWh. Variabilele noi nu au ajutat
+și rămân doar experimentale (`EXPERIMENTAL`). Concluzie: în piața asta forma zilei e foarte persistentă; un
+forecast mai bun cere informație nouă (indisponibilități, combustibili), nu mai multă ingineria acelorași date.
+Rezultate: `reports/experiments.json`.
+
 ## Rulare
 ```bash
 pip install -e ".[dev]"

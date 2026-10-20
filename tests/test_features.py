@@ -22,7 +22,7 @@ def test_no_neighbor_d1_prices_in_features():
 def test_features_shape_and_columns(synth):
     inputs, prices = synth
     X = F.build_features(inputs, prices, day_index("2026-01-20"))
-    assert list(X.columns) == F.FEATURES and len(X) == 96
+    assert list(X.columns) == F.FEATURES + F.EXPERIMENTAL and len(X) == 96
     assert X["price_lag_24h"].notna().all()
 
 

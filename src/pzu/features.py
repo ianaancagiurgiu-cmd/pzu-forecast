@@ -7,6 +7,8 @@ sunt lag-uri >= 24h, iar preturile vecinilor intra ca lag-uri, nu ca valori D+1.
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import numpy as np
 import pandas as pd
 
@@ -40,10 +42,24 @@ FEATURE_SPECS: dict[str, tuple[str, int]] = {
     **{f"price_{z.lower()}_lag_7d": ("lag", 168) for z in NEIGHBORS},
 }
 FEATURES = list(FEATURE_SPECS)
+
+# Experimentale: calculate mereu, dar NEfolosite de modelul de productie. In scripts/experiments.py nu au
+# imbunatatit valoarea pe baterie nici pe perioada de dezvoltare, nici pe holdout (vezi reports/experiments.json).
+EXPERIMENTAL_SPECS: dict[str, tuple[str, int]] = {
+    "price_lag_48h": ("lag", 48),
+    "price_lag_14d": ("lag", 336),
+    # statistici ale zilei precedente (D): toata ziua D e cunoscuta la ora prognozei
+    "prev_day_mean": ("lag", 24),
+    "prev_day_min": ("lag", 24),
+    "prev_day_max": ("lag", 24),
+    "prev_day_std": ("lag", 24),
+    "lag24_dev": ("lag", 24),   # pretul de ieri la aceeasi ora fata de media zilei de ieri (forma zilei)
+}
+EXPERIMENTAL = list(EXPERIMENTAL_SPECS)
 INPUT_FEATURES = [f for f, (kind, _) in FEATURE_SPECS.items() if kind == "forecast" and f != "residual_load"]
 
 
-def assert_no_leakage(specs: dict[str, tuple[str, int]] = FEATURE_SPECS) -> None:
+def assert_no_leakage(specs: dict[str, tuple[str, int]] = {**FEATURE_SPECS, **EXPERIMENTAL_SPECS}) -> None:
     """Verificare statica: niciun feature de pret nu se uita mai aproape de 24h."""
     bad = [n for n, (kind, lag) in specs.items() if kind == "lag" and lag < 24]
     if bad:
@@ -54,6 +70,18 @@ def _lag(s: pd.Series | None, index: pd.DatetimeIndex, delta: pd.Timedelta) -> n
     if s is None:
         return np.full(len(index), np.nan)
     return s.reindex(index - delta).to_numpy(dtype=float)
+
+
+def _prev_day_stats(ro: pd.Series | None, local_index: pd.DatetimeIndex) -> dict[str, np.ndarray]:
+    """mean/min/max/std ale pretului RO din ziua locala precedenta fiecarui interval."""
+    n = len(local_index)
+    if ro is None or ro.dropna().empty:
+        return {k: np.full(n, np.nan) for k in ("mean", "min", "max", "std")}
+    r = ro.dropna()
+    by_day = r.groupby(pd.Index(r.index.tz_convert(local_index.tz).date)).agg(["mean", "min", "max", "std"])
+    prev = [d - timedelta(days=1) for d in local_index.date]
+    got = by_day.reindex(prev)
+    return {k: got[k].to_numpy(dtype=float) for k in ("mean", "min", "max", "std")}
 
 
 def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.DatetimeIndex) -> pd.DataFrame:
@@ -81,11 +109,17 @@ def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.Datetim
         out["price_rolling_mean_7d"] = np.where(valid >= 3, mean, np.nan)
     else:
         out["price_rolling_mean_7d"] = np.nan
+    out["price_lag_48h"] = _lag(ro, index, 2 * H24)
+    out["price_lag_14d"] = _lag(ro, index, 14 * H24)
+    stats = _prev_day_stats(ro, local)
+    for name in ("mean", "min", "max", "std"):
+        out[f"prev_day_{name}"] = stats[name]
+    out["lag24_dev"] = out["price_lag_24h"] - out["prev_day_mean"]
     for z in NEIGHBORS:
         s = prices[z] if z in prices else None
         out[f"price_{z.lower()}_lag_24h"] = _lag(s, index, H24)
         out[f"price_{z.lower()}_lag_7d"] = _lag(s, index, 7 * H24)
-    return out[FEATURES]
+    return out[FEATURES + EXPERIMENTAL]
 
 
 def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day) -> None:

@@ -1,6 +1,7 @@
 """Walk-forward: antrenam pe ultimele `window_days` zile, prezicem ziua urmatoare, avansam o zi."""
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from pzu import features as F
@@ -16,15 +17,18 @@ def _local_dates(idx: pd.DatetimeIndex) -> pd.Series:
 
 
 def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: int = 90,
+                 target: str = "level", refit_every: int = 1, end_offset_days: int = 0,
+                 cols: list[str] | None = None,
                  **model_overrides) -> pd.DataFrame:
     """Rezultat: un rand pe interval (y, pred, date, + baseline-uri). Se testeaza ultimele
     `n_days` zile; fiecare zi e prezisa cu un model antrenat doar pe zilele anterioare."""
     dates = _local_dates(X.index)
     days = sorted(dates.unique())
     # sare peste ziua incompleta de la capat; ultimele n_days zile devin zile de test
-    test_days = days[-n_days:] if n_days < len(days) else days[1:]
-    rows = []
-    for day in test_days:
+    pool = days[:len(days) - end_offset_days] if end_offset_days else days
+    test_days = pool[-n_days:] if n_days < len(pool) else pool[1:]
+    rows, m, last_fit = [], None, -10**9
+    for k, day in enumerate(test_days):
         train_days = [d for d in days if d < day][-window_days:]
         if len(train_days) < min(window_days, 14):
             continue
@@ -32,8 +36,19 @@ def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: i
         te = (dates == day).to_numpy()
         if te.sum() == 0:
             continue
-        m = M.fit(X[tr], y[tr], **model_overrides)
-        part = pd.DataFrame({"y": y[te], "pred": m.predict(X.loc[te, F.FEATURES])}, index=X.index[te])
+        if m is None or k - last_fit >= refit_every:
+            if target == "residual":   # invata corectia fata de media pe 7 zile
+                base_tr = X.loc[tr, "price_rolling_mean_7d"]
+                ok = base_tr.notna().to_numpy()
+                m = M.fit(X[tr][ok], (y[tr] - base_tr)[ok], cols, **model_overrides)
+            else:
+                m = M.fit(X[tr], y[tr], cols, **model_overrides)
+            last_fit = k
+        pred = m.predict(X.loc[te, cols or F.FEATURES])
+        if target == "residual":
+            base = X.loc[te, "price_rolling_mean_7d"].to_numpy()
+            pred = np.where(np.isnan(base), np.nan, base + pred)
+        part = pd.DataFrame({"y": y[te], "pred": pred}, index=X.index[te])
         part["date"] = day
         for name, col in BASELINES.items():
             part[name] = X.loc[te, col]
