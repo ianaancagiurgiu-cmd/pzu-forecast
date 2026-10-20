@@ -3,7 +3,7 @@ Timestamp-urile se stocheaza in UTC; la citire se returneaza tz-aware UTC."""
 import pandas as pd
 from sqlalchemy import (
     JSON, Column, Date, DateTime, Float, LargeBinary, MetaData, String, Table, create_engine, delete,
-    select, tuple_,
+    inspect, select, text, tuple_,
 )
 from sqlalchemy.engine import Engine
 
@@ -38,6 +38,8 @@ price_forecast = Table(
     Column("predicted_price", Float),
     Column("ci_lower", Float),
     Column("ci_upper", Float),
+    Column("mean7d_price", Float),   # referinta simpla: media pe 7 zile la aceeasi ora
+    Column("blend_price", Float),    # mix 50/50 model + media pe 7 zile
     Column("model_version", String(20)),
     Column("features_used", JSON),
 )
@@ -83,6 +85,21 @@ def get_engine(url: str | None = None) -> Engine:
 
 def init_db(engine: Engine) -> None:
     metadata.create_all(engine)
+    _add_missing_columns(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """Migrare usoara: coloanele noi (nullable) se adauga in tabelele existente (ex. DB din release)."""
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in have and not col.primary_key:
+                    ddl = col.type.compile(dialect=engine.dialect)
+                    conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN "{col.name}" {ddl}'))
 
 
 def upsert_df(engine: Engine, table: Table, df: pd.DataFrame, keys: list[str]) -> int:

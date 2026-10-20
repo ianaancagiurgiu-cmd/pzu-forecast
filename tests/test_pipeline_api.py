@@ -137,3 +137,27 @@ def test_api_dates_accuracy_and_dashboard(client):
     page = client.get("/")
     assert page.status_code == 200 and "Forecast PZU" in page.text
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_api_includes_benchmarks(client):
+    body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
+    first = body["intervals"][0]
+    assert first["mean_7d_price"] is not None and first["blend_price"] is not None
+    assert first["blend_price"] == pytest.approx(0.5 * first["predicted_price"] + 0.5 * first["mean_7d_price"], abs=0.02)
+    csv = client.get("/api/v1/forecast/pzu/export", params={"date": "2026-03-02", "format": "csv"}).text
+    assert "blend_price" in csv.splitlines()[0]
+
+
+def test_init_db_adds_new_columns_to_an_old_database(tmp_path):
+    from sqlalchemy import inspect, text
+    eng = db.get_engine(f"sqlite:///{tmp_path/'old.db'}")
+    with eng.begin() as conn:   # schema veche, fara coloanele noi
+        conn.execute(text("CREATE TABLE price_forecast (timestamp DATETIME PRIMARY KEY, forecast_generated_at DATETIME, "
+                          "predicted_price FLOAT, ci_lower FLOAT, ci_upper FLOAT, model_version VARCHAR(20), features_used JSON)"))
+        conn.execute(text("INSERT INTO price_forecast (timestamp, predicted_price) VALUES ('2026-01-01 00:00:00', 50.0)"))
+    db.init_db(eng)
+    cols = {c["name"] for c in inspect(eng).get_columns("price_forecast")}
+    assert {"mean7d_price", "blend_price"} <= cols
+    with eng.connect() as conn:   # datele existente raman
+        assert conn.execute(text("SELECT predicted_price FROM price_forecast")).scalar_one() == 50.0
+    db.init_db(eng)               # idempotent

@@ -75,6 +75,9 @@ def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame
         raise ValueError(f"Lipsesc forecast-uri de intrare pentru {pd.Timestamp(target_day).date()}")
     pred = pd.Series(bundle.model.predict(X[bundle.features]), index=idx)
     lo, hi = bundle.conformal.interval(pred)
-    out = pd.DataFrame({"predicted_price": pred, "ci_lower": lo, "ci_upper": hi})
+    mean7d = pd.Series(X["price_rolling_mean_7d"].to_numpy(), index=idx)
+    blend = (0.5 * pred + 0.5 * mean7d).where(mean7d.notna(), pred)
+    out = pd.DataFrame({"predicted_price": pred, "ci_lower": lo, "ci_upper": hi,
+                        "mean7d_price": mean7d, "blend_price": blend})
     out["model_version"] = bundle.version
     return out

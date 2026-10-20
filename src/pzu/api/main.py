@@ -28,6 +28,11 @@ def _round(x) -> float:
     return round(float(x), 2)
 
 
+def _opt(row, key):
+    v = row.get(key)
+    return None if v is None or pd.isna(v) else round(float(v), 2)
+
+
 def create_app(engine: Engine | None = None) -> FastAPI:
     engine = engine or db.get_engine()
     db.init_db(engine)
@@ -54,7 +59,8 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             "intervals": [
                 {"start": _iso(ts), "end": _iso(ts + step),
                  "predicted_price": _round(r.predicted_price),
-                 "ci_90_lower": _round(r.ci_lower), "ci_90_upper": _round(r.ci_upper)}
+                 "ci_90_lower": _round(r.ci_lower), "ci_90_upper": _round(r.ci_upper),
+                 "mean_7d_price": _opt(r, "mean7d_price"), "blend_price": _opt(r, "blend_price")}
                 for ts, r in fc.iterrows()
             ],
         }
@@ -82,6 +88,8 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             "ci_90_lower": fc["ci_lower"].round(2).to_numpy(),
             "ci_90_upper": fc["ci_upper"].round(2).to_numpy(),
             "diff_vs_daily_mean": (fc["predicted_price"] - fc["predicted_price"].mean()).round(2).to_numpy(),
+            "mean_7d_price": fc["mean7d_price"].round(2).to_numpy() if "mean7d_price" in fc else None,
+            "blend_price": fc["blend_price"].round(2).to_numpy() if "blend_price" in fc else None,
         })
         name = f"forecast_pzu_{date}"
         if format == "csv":

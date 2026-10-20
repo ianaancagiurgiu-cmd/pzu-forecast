@@ -49,6 +49,8 @@ Apoi totul rulează singur. Dashboard-ul: Releases → `PZU data` → `dashboard
 Alternativ, pe un server propriu: Postgres (`DATABASE_URL`) + `docker compose up`.
 
 ## API
+Fiecare interval include și `mean_7d_price` (media pe 7 zile la aceeași oră) și `blend_price` (mix 50/50 cu modelul),
+semnale simple care, în simulările pe baterie, au avut valoare comparabilă cu modelul.
 `GET /api/v1/forecast/pzu?date=YYYY-MM-DD`, `/summary`, `/export?format=csv|xlsx`, `/api/v1/forecast/dates`,
 `/api/v1/accuracy?days=30`, `/health`. Dashboard la `/`. **Fără autentificare** în v1: nu expune API-ul public.
 
