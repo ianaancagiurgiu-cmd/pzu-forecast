@@ -54,6 +54,17 @@ semnale simple care, în simulările pe baterie, au avut valoare comparabilă cu
 `GET /api/v1/forecast/pzu?date=YYYY-MM-DD`, `/summary`, `/export?format=csv|xlsx`, `/api/v1/forecast/dates`,
 `/api/v1/accuracy?days=30`, `/health`. Dashboard la `/`. **Fără autentificare** în v1: nu expune API-ul public.
 
+## Model „de dimineață” (v2): ce folosește și de ce
+Prognozele ENTSO-E de producție solară și eoliană pentru D+1 **nu sunt publicate nici după gate closure** (verificat
+live pe 21 oct 2026, ora 13:03 a României), deci nu pot fi intrări pentru o prognoză de dimineață. Prima versiune le
+folosea și rezultatele ei erau puțin optimiste. Modelul de producție folosește acum doar ce există sigur la 06:00:
+prognoza de consum D+1, calendarul și prețurile din zilele trecute (RO și vecini, lag-uri). Vremea și capacitățile de
+interconexiune nu au îmbunătățit rezultatele și au fost scoase (`PRODUCTION_FEATURES`), deci pipeline-ul nu mai
+depinde de Open-Meteo. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (față de 27,7 cu date indisponibile,
+33,9 pentru media pe 7 zile și 32,9 pentru prețul de ieri). Detalii: `reports/experiments_morning.json`.
+Atenție: regula „reduc producția când prețul prognozat e negativ” bazată pe model a pierdut bani la parcuri
+în simulare; nu o folosi.
+
 ## Raport de valoare
 `python scripts/value_report.py` simulează decizii (baterie 10 MW 2h/4h, parc solar/eolian 100 MW) luate cu prognoza,
 evaluate la prețurile reale, și le compară cu strategii simple („prețul de ieri”, media pe 7 zile). Activele sunt
