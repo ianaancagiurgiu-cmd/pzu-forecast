@@ -1,0 +1,245 @@
+{
+  "total": {
+    "zile": 669,
+    "MAE_model": 25.045254290635064,
+    "MAE_ieri": 28.28940781687948,
+    "MAE_medie7": 28.275821461938868,
+    "coverage_90": 0.8962084102042115,
+    "mediana_eroare": 15.712807566170063,
+    "p90_eroare": 56.62574346479581,
+    "sub_20": 0.5845375272500779,
+    "sub_40": 0.8125661787605107
+  },
+  "luni": {
+    "2024-12": {
+      "zile": 10,
+      "pret_mediu": 118.59,
+      "MAE_model": 20.0,
+      "MAE_ieri": 17.45,
+      "MAE_medie7": 22.0,
+      "baterie_model_%": 68.99,
+      "baterie_medie7_%": 87.97,
+      "baterie_ieri_%": 67.55
+    },
+    "2025-01": {
+      "zile": 31,
+      "pret_mediu": 139.42,
+      "MAE_model": 32.43,
+      "MAE_ieri": 29.41,
+      "MAE_medie7": 28.01,
+      "baterie_model_%": 76.1,
+      "baterie_medie7_%": 81.02,
+      "baterie_ieri_%": 64.07
+    },
+    "2025-02": {
+      "zile": 28,
+      "pret_mediu": 157.19,
+      "MAE_model": 25.97,
+      "MAE_ieri": 25.11,
+      "MAE_medie7": 24.29,
+      "baterie_model_%": 67.38,
+      "baterie_medie7_%": 80.76,
+      "baterie_ieri_%": 74.48
+    },
+    "2025-03": {
+      "zile": 31,
+      "pret_mediu": 106.49,
+      "MAE_model": 23.66,
+      "MAE_ieri": 26.21,
+      "MAE_medie7": 27.64,
+      "baterie_model_%": 84.83,
+      "baterie_medie7_%": 93.51,
+      "baterie_ieri_%": 88.86
+    },
+    "2025-04": {
+      "zile": 30,
+      "pret_mediu": 86.44,
+      "MAE_model": 22.31,
+      "MAE_ieri": 24.47,
+      "MAE_medie7": 25.54,
+      "baterie_model_%": 86.58,
+      "baterie_medie7_%": 95.63,
+      "baterie_ieri_%": 91.05
+    },
+    "2025-05": {
+      "zile": 31,
+      "pret_mediu": 85.89,
+      "MAE_model": 21.79,
+      "MAE_ieri": 28.39,
+      "MAE_medie7": 26.98,
+      "baterie_model_%": 93.09,
+      "baterie_medie7_%": 95.02,
+      "baterie_ieri_%": 90.76
+    },
+    "2025-06": {
+      "zile": 30,
+      "pret_mediu": 86.11,
+      "MAE_model": 17.71,
+      "MAE_ieri": 24.4,
+      "MAE_medie7": 21.56,
+      "baterie_model_%": 88.59,
+      "baterie_medie7_%": 90.17,
+      "baterie_ieri_%": 86.97
+    },
+    "2025-07": {
+      "zile": 31,
+      "pret_mediu": 103.53,
+      "MAE_model": 18.04,
+      "MAE_ieri": 20.31,
+      "MAE_medie7": 21.54,
+      "baterie_model_%": 86.51,
+      "baterie_medie7_%": 92.18,
+      "baterie_ieri_%": 89.81
+    },
+    "2025-08": {
+      "zile": 31,
+      "pret_mediu": 78.31,
+      "MAE_model": 16.73,
+      "MAE_ieri": 18.58,
+      "MAE_medie7": 18.46,
+      "baterie_model_%": 92.85,
+      "baterie_medie7_%": 96.36,
+      "baterie_ieri_%": 94.84
+    },
+    "2025-09": {
+      "zile": 30,
+      "pret_mediu": 97.03,
+      "MAE_model": 23.89,
+      "MAE_ieri": 29.17,
+      "MAE_medie7": 28.61,
+      "baterie_model_%": 94.28,
+      "baterie_medie7_%": 96.35,
+      "baterie_ieri_%": 91.06
+    },
+    "2025-10": {
+      "zile": 31,
+      "pret_mediu": 121.84,
+      "MAE_model": 24.34,
+      "MAE_ieri": 31.92,
+      "MAE_medie7": 30.14,
+      "baterie_model_%": 79.36,
+      "baterie_medie7_%": 82.59,
+      "baterie_ieri_%": 77.1
+    },
+    "2025-11": {
+      "zile": 30,
+      "pret_mediu": 121.48,
+      "MAE_model": 23.43,
+      "MAE_ieri": 25.37,
+      "MAE_medie7": 24.07,
+      "baterie_model_%": 65.58,
+      "baterie_medie7_%": 74.52,
+      "baterie_ieri_%": 63.96
+    },
+    "2025-12": {
+      "zile": 31,
+      "pret_mediu": 117.65,
+      "MAE_model": 16.91,
+      "MAE_ieri": 18.69,
+      "MAE_medie7": 19.49,
+      "baterie_model_%": 57.13,
+      "baterie_medie7_%": 63.28,
+      "baterie_ieri_%": 57.11
+    },
+    "2026-01": {
+      "zile": 31,
+      "pret_mediu": 150.49,
+      "MAE_model": 31.26,
+      "MAE_ieri": 39.73,
+      "MAE_medie7": 40.49,
+      "baterie_model_%": 59.84,
+      "baterie_medie7_%": 65.91,
+      "baterie_ieri_%": 61.97
+    },
+    "2026-02": {
+      "zile": 28,
+      "pret_mediu": 99.81,
+      "MAE_model": 30.77,
+      "MAE_ieri": 33.26,
+      "MAE_medie7": 25.51,
+      "baterie_model_%": 52.11,
+      "baterie_medie7_%": 55.96,
+      "baterie_ieri_%": 37.55
+    },
+    "2026-03": {
+      "zile": 31,
+      "pret_mediu": 105.07,
+      "MAE_model": 27.08,
+      "MAE_ieri": 30.53,
+      "MAE_medie7": 28.75,
+      "baterie_model_%": 81.56,
+      "baterie_medie7_%": 84.13,
+      "baterie_ieri_%": 81.1
+    },
+    "2026-04": {
+      "zile": 30,
+      "pret_mediu": 95.59,
+      "MAE_model": 27.27,
+      "MAE_ieri": 26.67,
+      "MAE_medie7": 30.83,
+      "baterie_model_%": 82.8,
+      "baterie_medie7_%": 87.32,
+      "baterie_ieri_%": 83.8
+    },
+    "2026-05": {
+      "zile": 31,
+      "pret_mediu": 109.52,
+      "MAE_model": 25.18,
+      "MAE_ieri": 27.0,
+      "MAE_medie7": 25.87,
+      "baterie_model_%": 87.57,
+      "baterie_medie7_%": 91.8,
+      "baterie_ieri_%": 87.71
+    },
+    "2026-06": {
+      "zile": 30,
+      "pret_mediu": 122.88,
+      "MAE_model": 30.15,
+      "MAE_ieri": 36.74,
+      "MAE_medie7": 38.15,
+      "baterie_model_%": 87.76,
+      "baterie_medie7_%": 91.85,
+      "baterie_ieri_%": 88.51
+    },
+    "2026-07": {
+      "zile": 31,
+      "pret_mediu": 120.21,
+      "MAE_model": 26.35,
+      "MAE_ieri": 30.38,
+      "MAE_medie7": 36.54,
+      "baterie_model_%": 81.08,
+      "baterie_medie7_%": 84.54,
+      "baterie_ieri_%": 80.35
+    },
+    "2026-08": {
+      "zile": 31,
+      "pret_mediu": 151.1,
+      "MAE_model": 25.72,
+      "MAE_ieri": 29.26,
+      "MAE_medie7": 29.93,
+      "baterie_model_%": 86.23,
+      "baterie_medie7_%": 88.66,
+      "baterie_ieri_%": 85.46
+    },
+    "2026-09": {
+      "zile": 30,
+      "pret_mediu": 176.2,
+      "MAE_model": 31.41,
+      "MAE_ieri": 38.28,
+      "MAE_medie7": 37.52,
+      "baterie_model_%": 85.18,
+      "baterie_medie7_%": 88.01,
+      "baterie_ieri_%": 78.13
+    },
+    "2026-10": {
+      "zile": 21,
+      "pret_mediu": 223.4,
+      "MAE_model": 33.67,
+      "MAE_ieri": 34.33,
+      "MAE_medie7": 36.4,
+      "baterie_model_%": 79.94,
+      "baterie_medie7_%": 82.53,
+      "baterie_ieri_%": 76.08
+    }
+  }
+}
