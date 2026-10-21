@@ -52,6 +52,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     def forecast(date: date = Query(..., description="Ziua de livrare (D+1), YYYY-MM-DD")):
         fc = load_day(date)
         step = pd.Timedelta(minutes=15)
+        actual = db.read_actual_ro(engine, day_index(date))   # NaN pana la publicarea pretului oficial
         return {
             "date": date.isoformat(),
             "generated_at": _iso(pd.to_datetime(fc["forecast_generated_at"], utc=True).max()),
@@ -60,7 +61,8 @@ def create_app(engine: Engine | None = None) -> FastAPI:
                 {"start": _iso(ts), "end": _iso(ts + step),
                  "predicted_price": _round(r.predicted_price),
                  "ci_90_lower": _round(r.ci_lower), "ci_90_upper": _round(r.ci_upper),
-                 "mean_7d_price": _opt(r, "mean7d_price"), "blend_price": _opt(r, "blend_price")}
+                 "mean_7d_price": _opt(r, "mean7d_price"), "blend_price": _opt(r, "blend_price"),
+                 "actual_price": None if pd.isna(actual.get(ts)) else round(float(actual.get(ts)), 2)}
                 for ts, r in fc.iterrows()
             ],
         }

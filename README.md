@@ -65,6 +65,23 @@ depinde de Open-Meteo. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (fa
 Atenție: regula „reduc producția când prețul prognozat e negativ” bazată pe model a pierdut bani la parcuri
 în simulare; nu o folosi.
 
+## Teste de îmbunătățire pe tot istoricul (`scripts/improvements.py`, 671 de zile, toate anotimpurile)
+Eroarea medie și valoarea pe baterie (10 MW / 2h, % din câștigul cu prevedere perfectă), antrenare pe 60 de zile:
+
+| Variantă | MAE | Baterie, tot | iarna | vara |
+|---|---|---|---|---|
+| Prețul de ieri | 28,3 | 81,2% | 60,2% | 87,5% |
+| Media pe 7 zile | 28,3 | 86,8% | 71,3% | 90,5% |
+| Model de producție (V0) | 24,9 | 82,7% | 63,2% | 87,6% |
+| + corecție cu erorile ultimelor 7 zile (V1) | 27,0 | 80,3% | 57,4% | 85,8% |
+| Modele separate pe zone orare (V2) | 25,6 | 80,9% | 60,1% | 87,2% |
+| Nivel zilnic + formă a zilei (V3) | 25,9 | 83,6% | 66,7% | 88,8% |
+| **Mix 50/50 model + medie 7 zile** | **24,6** | **86,6%** | 69,6% | 90,7% |
+
+Nicio îmbunătățire (V1–V4) nu bate media pe 7 zile la valoarea pe baterie. Mixul 50/50 are cea mai mică eroare și
+aceeași valoare ca media pe 7 zile, deci domină modelul simplu pe ambele măsurători. Erori pe zone orare: cele mai
+mari la prânz și seara; modelul subestimează vârfurile și supraestimează prețurile mici.
+
 ## Raport de valoare
 `python scripts/value_report.py` simulează decizii (baterie 10 MW 2h/4h, parc solar/eolian 100 MW) luate cu prognoza,
 evaluate la prețurile reale, și le compară cu strategii simple („prețul de ieri”, media pe 7 zile). Activele sunt

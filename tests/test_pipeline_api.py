@@ -161,3 +161,20 @@ def test_init_db_adds_new_columns_to_an_old_database(tmp_path):
     with eng.connect() as conn:   # datele existente raman
         assert conn.execute(text("SELECT predicted_price FROM price_forecast")).scalar_one() == 50.0
     db.init_db(eng)               # idempotent
+
+
+def test_api_returns_actual_prices_for_comparison(env, client):
+    eng, _ = env
+    body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
+    got = [x["actual_price"] for x in body["intervals"]]
+    want = db.read_actual_ro(eng, day_index(DAY)).round(2).tolist()   # ce e publicat in DB
+    assert got == pytest.approx(want, abs=0.011)
+
+
+def test_actual_is_null_until_published(env, client):
+    eng, _ = env
+    from sqlalchemy import text
+    with eng.begin() as conn:     # simulam "pretul oficial inca nepublicat"
+        conn.execute(text("DELETE FROM prices_actual WHERE zone='RO' AND timestamp >= '2026-03-01 22:00:00'"))
+    body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
+    assert all(x["actual_price"] is None for x in body["intervals"])

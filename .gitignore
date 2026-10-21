@@ -7,3 +7,4 @@ models/
 *.egg-info/
 site/
 reports/_gen_*.csv
+reports/improvements_predictions.csv

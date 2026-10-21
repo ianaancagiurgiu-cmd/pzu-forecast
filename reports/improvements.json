@@ -1,0 +1,82 @@
+{
+  "ieri": {
+    "MAE": 28.29,
+    "MAE_pranz": 32.16,
+    "MAE_seara": 38.85,
+    "baterie_%_tot": 81.23,
+    "baterie_%_iarna": 60.23,
+    "baterie_%_vara": 87.46
+  },
+  "medie7": {
+    "MAE": 28.3,
+    "MAE_pranz": 33.64,
+    "MAE_seara": 39.4,
+    "baterie_%_tot": 86.78,
+    "baterie_%_iarna": 71.26,
+    "baterie_%_vara": 90.51
+  },
+  "V0": {
+    "MAE": 24.93,
+    "MAE_pranz": 27.56,
+    "MAE_seara": 34.55,
+    "baterie_%_tot": 82.74,
+    "baterie_%_iarna": 63.19,
+    "baterie_%_vara": 87.64
+  },
+  "V1": {
+    "MAE": 26.97,
+    "MAE_pranz": 29.6,
+    "MAE_seara": 37.72,
+    "baterie_%_tot": 80.3,
+    "baterie_%_iarna": 57.42,
+    "baterie_%_vara": 85.78
+  },
+  "V2": {
+    "MAE": 25.65,
+    "MAE_pranz": 28.57,
+    "MAE_seara": 35.48,
+    "baterie_%_tot": 80.93,
+    "baterie_%_iarna": 60.13,
+    "baterie_%_vara": 87.2
+  },
+  "V3": {
+    "MAE": 25.9,
+    "MAE_pranz": 27.73,
+    "MAE_seara": 34.98,
+    "baterie_%_tot": 83.56,
+    "baterie_%_iarna": 66.74,
+    "baterie_%_vara": 88.76
+  },
+  "V4": {
+    "MAE": 28.97,
+    "MAE_pranz": 31.1,
+    "MAE_seara": 37.49,
+    "baterie_%_tot": 83.56,
+    "baterie_%_iarna": 66.68,
+    "baterie_%_vara": 88.74
+  },
+  "V0+medie7": {
+    "MAE": 24.57,
+    "MAE_pranz": 28.42,
+    "MAE_seara": 34.15,
+    "baterie_%_tot": 86.6,
+    "baterie_%_iarna": 69.64,
+    "baterie_%_vara": 90.67
+  },
+  "V3+medie7": {
+    "MAE": 25.07,
+    "MAE_pranz": 28.63,
+    "MAE_seara": 34.86,
+    "baterie_%_tot": 86.61,
+    "baterie_%_iarna": 71.2,
+    "baterie_%_vara": 90.58
+  },
+  "V4+medie7": {
+    "MAE": 27.7,
+    "MAE_pranz": 31.68,
+    "MAE_seara": 37.4,
+    "baterie_%_tot": 86.6,
+    "baterie_%_iarna": 71.18,
+    "baterie_%_vara": 90.56
+  }
+}

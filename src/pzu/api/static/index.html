@@ -20,6 +20,7 @@ svg{width:100%;height:auto;display:block}svg text{font-size:11px;fill:var(--mute
 table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 th{position:sticky;top:0;background:var(--card)}td:first-child,th:first-child{text-align:left}
 .legend span{margin-right:14px;font-size:13px}.legend i{display:inline-block;width:10px;height:10px;margin-right:4px;border-radius:2px}
+.e-ok{color:#2a9d8f;font-weight:600}.e-mid{color:#e9a100;font-weight:600}.e-bad{color:var(--acc);font-weight:600}
 .warn{background:var(--warn);color:var(--warnfg);padding:8px 12px;border-radius:6px;font-size:13px;margin-top:22px}
 #err{color:var(--acc)}
 </style>
@@ -38,7 +39,7 @@ th{position:sticky;top:0;background:var(--card)}td:first-child,th:first-child{te
 <div id="chart"></div>
 <p class="sub">Modelul estimează mai bine nivelul prețului; media pe 7 zile și mixul sunt semnale simple, la fel de bune pentru a alege orele ieftine și scumpe (de exemplu la o baterie), conform simulărilor pe prețuri reale.</p>
 <h2>Intervale</h2>
-<div class="tbl"><table><thead><tr><th>Interval</th><th>Preț</th><th>Min 90%</th><th>Max 90%</th><th>Față de medie</th><th>Medie 7 zile</th><th>Mix 50/50</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Interval</th><th>Preț</th><th>Min 90%</th><th>Max 90%</th><th>Față de medie</th><th>Medie 7 zile</th><th>Mix 50/50</th><th>Preț real</th><th>Eroare</th></tr></thead><tbody id="rows"></tbody></table></div>
 <h2>Acuratețe: MAE zilnic, ultimele 30 de zile</h2>
 <div id="acc" class="sub"></div>
 <p class="warn">Forecast-ul este o estimare statistică și nu garantează profit; execuția, costurile și riscul de piață rămân în responsabilitatea utilizatorului.</p>
@@ -55,7 +56,7 @@ async function j(u){
   }
   const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()}
 function csvLink(f){ // export CSV fara server
-  const rows=["start,predicted_price,ci_90_lower,ci_90_upper,mean_7d_price,blend_price",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper,x.mean_7d_price??"",x.blend_price??""].join(","))];
+  const rows=["start,predicted_price,ci_90_lower,ci_90_upper,mean_7d_price,blend_price,actual_price",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper,x.mean_7d_price??"",x.blend_price??"",x.actual_price??""].join(","))];
   return URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
 }
 const hhmm=s=>s.slice(11,16);
@@ -73,6 +74,19 @@ function chart(el,series,opts){ // series: [{y:[],lo:[],hi:[],color,bars}]
   });
   el.innerHTML=g+"</svg>";
 }
+function errCell(x){
+  if(x.actual_price==null)return "–";
+  const e=x.predicted_price-x.actual_price,a=Math.abs(e),c=a<20?"e-ok":a<40?"e-mid":"e-bad";
+  return `<span class="${c}">${(e>=0?"+":"")+fmt(e)}</span>`;
+}
+function dayAccuracy(it){
+  const a=it.filter(x=>x.actual_price!=null);
+  if(a.length<it.length)return "";
+  const errs=a.map(x=>Math.abs(x.predicted_price-x.actual_price));
+  const mae=errs.reduce((s,v)=>s+v,0)/errs.length,ok=errs.filter(v=>v<20).length/errs.length*100;
+  const inb=a.filter(x=>x.actual_price>=x.ci_90_lower&&x.actual_price<=x.ci_90_upper).length/a.length*100;
+  return [["Eroare medie (zi)",fmt(mae)],["Intervale cu eroare sub 20",fmt(ok,0)+"%"],["Preț real în interval 90%",fmt(inb,0)+"%"]];
+}
 async function load(day){
   $("err").textContent="";
   try{
@@ -81,16 +95,18 @@ async function load(day){
     if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
     else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
     $("kpis").innerHTML=[["Preț mediu",fmt(s.mean)],["Minim",fmt(s.min)],["Maxim",fmt(s.max)],["Spread zilnic",fmt(s.spread)],
-      ["Ore sub 30 EUR/MWh",fmt(s.hours_below_30)],["Ore peste 150 EUR/MWh",fmt(s.hours_above_150)]].map(([a,b])=>`<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
+      ["Ore sub 30 EUR/MWh",fmt(s.hours_below_30)],["Ore peste 150 EUR/MWh",fmt(s.hours_above_150)],...(dayAccuracy(f.intervals)||[])].map(([a,b])=>`<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
     const it=f.intervals,ticks=it.map((x,i)=>[i,hhmm(x.start)]).filter(([i])=>i%12==0);
     const hasRef=it.every(x=>x.mean_7d_price!=null&&x.blend_price!=null);
     const ser=[{y:it.map(x=>x.predicted_price),lo:it.map(x=>x.ci_90_lower),hi:it.map(x=>x.ci_90_upper),color:"var(--acc)"}];
     let leg=`<span><i style="background:var(--acc)"></i>Model (cu interval 90%)</span>`;
     if(hasRef){ser.push({y:it.map(x=>x.mean_7d_price),color:"#4c78a8",w:1.4,dash:"5 3"},{y:it.map(x=>x.blend_price),color:"#f2a900",w:1.4});
       leg+=`<span><i style="background:#4c78a8"></i>Medie 7 zile</span><span><i style="background:#f2a900"></i>Mix 50/50</span>`}
+    const act=it.filter(x=>x.actual_price!=null);
+    if(act.length===it.length){ser.push({y:it.map(x=>x.actual_price),color:"#111",w:1.6});leg+=`<span><i style="background:#111"></i>Preț real</span>`}
     $("legend").innerHTML=leg;
     chart($("chart"),ser,{label:"Forecast PZU",ticks});
-    $("rows").innerHTML=it.map(x=>`<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>${fmt(x.predicted_price)}</td><td>${fmt(x.ci_90_lower)}</td><td>${fmt(x.ci_90_upper)}</td><td>${(x.predicted_price-s.mean>=0?"+":"")+fmt(x.predicted_price-s.mean)}</td><td>${x.mean_7d_price==null?"–":fmt(x.mean_7d_price)}</td><td>${x.blend_price==null?"–":fmt(x.blend_price)}</td></tr>`).join("");
+    $("rows").innerHTML=it.map(x=>`<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>${fmt(x.predicted_price)}</td><td>${fmt(x.ci_90_lower)}</td><td>${fmt(x.ci_90_upper)}</td><td>${(x.predicted_price-s.mean>=0?"+":"")+fmt(x.predicted_price-s.mean)}</td><td>${x.mean_7d_price==null?"–":fmt(x.mean_7d_price)}</td><td>${x.blend_price==null?"–":fmt(x.blend_price)}</td><td>${x.actual_price==null?"–":fmt(x.actual_price)}</td><td>${errCell(x)}</td></tr>`).join("");
   }catch(e){$("err").textContent=e.message}
 }
 async function acc(){

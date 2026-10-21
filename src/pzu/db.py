@@ -1,5 +1,6 @@
 """Stocare: SQLAlchemy Core, acelasi cod pentru SQLite (dev) si PostgreSQL (productie).
 Timestamp-urile se stocheaza in UTC; la citire se returneaza tz-aware UTC."""
+import numpy as np
 import pandas as pd
 from sqlalchemy import (
     JSON, Column, Date, DateTime, Float, LargeBinary, MetaData, String, Table, create_engine, delete,
@@ -204,3 +205,16 @@ def read_forecast(engine: Engine, idx: pd.DatetimeIndex) -> pd.DataFrame:
         return df
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.set_index("timestamp").sort_index()
+
+
+def read_actual_ro(engine: Engine, idx: pd.DatetimeIndex) -> pd.Series:
+    """Preturile oficiale RO pentru intervalele date (NaN unde nu sunt publicate)."""
+    with engine.connect() as conn:
+        df = pd.read_sql(select(prices_actual.c.timestamp, prices_actual.c.price_eur_mwh).where(
+            prices_actual.c.zone == "RO",
+            prices_actual.c.timestamp >= idx[0].to_pydatetime(),
+            prices_actual.c.timestamp <= idx[-1].to_pydatetime()), conn)
+    if df.empty:
+        return pd.Series(np.nan, index=idx)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.set_index("timestamp")["price_eur_mwh"].reindex(idx)
