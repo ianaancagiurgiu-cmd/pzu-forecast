@@ -1,150 +1,150 @@
 {
   "baterie_2h": {
     "Prognoza modelului": {
-      "total_eur": 270029.2,
-      "per_day_eur": 3034.0,
-      "vs_reference_eur": 11818.5,
-      "pct_of_gap_captured": 19.0,
-      "pct_of_perfect": 84.3
+      "total_eur": 270554.4,
+      "per_day_eur": 3006.2,
+      "vs_reference_eur": 13551.2,
+      "pct_of_gap_captured": 21.3,
+      "pct_of_perfect": 84.4
     },
     "Prețul de ieri": {
-      "total_eur": 258210.7,
-      "per_day_eur": 2901.2,
+      "total_eur": 257003.3,
+      "per_day_eur": 2855.6,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0,
-      "pct_of_perfect": 80.6
+      "pct_of_perfect": 80.2
     },
     "Media pe 7 zile": {
-      "total_eur": 280921.0,
-      "per_day_eur": 3156.4,
-      "vs_reference_eur": 22710.3,
-      "pct_of_gap_captured": 36.5,
-      "pct_of_perfect": 87.7
+      "total_eur": 278499.6,
+      "per_day_eur": 3094.4,
+      "vs_reference_eur": 21496.4,
+      "pct_of_gap_captured": 33.8,
+      "pct_of_perfect": 86.9
     },
     "Mix 50/50 model + media 7 zile": {
-      "total_eur": 279913.0,
-      "per_day_eur": 3145.1,
-      "vs_reference_eur": 21702.3,
-      "pct_of_gap_captured": 34.9,
-      "pct_of_perfect": 87.4
+      "total_eur": 277264.6,
+      "per_day_eur": 3080.7,
+      "vs_reference_eur": 20261.3,
+      "pct_of_gap_captured": 31.9,
+      "pct_of_perfect": 86.5
     },
     "Prevedere perfectă (plafon)": {
-      "total_eur": 320396.6,
-      "per_day_eur": 3600.0,
-      "vs_reference_eur": 62185.9,
+      "total_eur": 320608.2,
+      "per_day_eur": 3562.3,
+      "vs_reference_eur": 63604.9,
       "pct_of_gap_captured": 100.0,
       "pct_of_perfect": 100.0
     }
   },
   "baterie_4h": {
     "Prognoza modelului": {
-      "total_eur": 495304.7,
-      "per_day_eur": 5565.2,
-      "vs_reference_eur": 14912.0,
-      "pct_of_gap_captured": 21.0,
-      "pct_of_perfect": 89.9
+      "total_eur": 496162.8,
+      "per_day_eur": 5512.9,
+      "vs_reference_eur": 19605.8,
+      "pct_of_gap_captured": 26.3,
+      "pct_of_perfect": 90.0
     },
     "Prețul de ieri": {
-      "total_eur": 480392.7,
-      "per_day_eur": 5397.7,
+      "total_eur": 476557.0,
+      "per_day_eur": 5295.1,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0,
-      "pct_of_perfect": 87.1
+      "pct_of_perfect": 86.5
     },
     "Media pe 7 zile": {
-      "total_eur": 507774.3,
-      "per_day_eur": 5705.3,
-      "vs_reference_eur": 27381.5,
-      "pct_of_gap_captured": 38.6,
-      "pct_of_perfect": 92.1
+      "total_eur": 503376.7,
+      "per_day_eur": 5593.1,
+      "vs_reference_eur": 26819.7,
+      "pct_of_gap_captured": 36.0,
+      "pct_of_perfect": 91.3
     },
     "Mix 50/50 model + media 7 zile": {
-      "total_eur": 507615.6,
-      "per_day_eur": 5703.5,
-      "vs_reference_eur": 27222.9,
-      "pct_of_gap_captured": 38.4,
-      "pct_of_perfect": 92.1
+      "total_eur": 505054.7,
+      "per_day_eur": 5611.7,
+      "vs_reference_eur": 28497.7,
+      "pct_of_gap_captured": 38.2,
+      "pct_of_perfect": 91.6
     },
     "Prevedere perfectă (plafon)": {
-      "total_eur": 551242.6,
-      "per_day_eur": 6193.7,
-      "vs_reference_eur": 70849.8,
+      "total_eur": 551082.0,
+      "per_day_eur": 6123.1,
+      "vs_reference_eur": 74525.0,
       "pct_of_gap_captured": 100.0,
       "pct_of_perfect": 100.0
     }
   },
   "parc_solar": {
     "Fără prognoză (vinde mereu)": {
-      "total_eur": 5753572.4,
-      "per_day_eur": 64646.9,
+      "total_eur": 5703875.1,
+      "per_day_eur": 63376.4,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0
     },
     "Prognoza modelului": {
-      "total_eur": 5704302.9,
-      "per_day_eur": 64093.3,
-      "vs_reference_eur": -49269.5,
-      "pct_of_gap_captured": -4667.8
+      "total_eur": 5691022.2,
+      "per_day_eur": 63233.6,
+      "vs_reference_eur": -12852.9,
+      "pct_of_gap_captured": -1217.7
     },
     "Prețul de ieri": {
-      "total_eur": 5587902.4,
-      "per_day_eur": 62785.4,
+      "total_eur": 5538205.1,
+      "per_day_eur": 61535.6,
       "vs_reference_eur": -165670.0,
       "pct_of_gap_captured": -15695.4
     },
     "Media pe 7 zile": {
-      "total_eur": 5753572.4,
-      "per_day_eur": 64646.9,
+      "total_eur": 5703875.1,
+      "per_day_eur": 63376.4,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0
     },
     "Mix 50/50 model + media 7 zile": {
-      "total_eur": 5753632.9,
-      "per_day_eur": 64647.6,
-      "vs_reference_eur": 60.5,
-      "pct_of_gap_captured": 5.7
+      "total_eur": 5703875.1,
+      "per_day_eur": 63376.4,
+      "vs_reference_eur": 0.0,
+      "pct_of_gap_captured": 0.0
     },
     "Prevedere perfectă (plafon)": {
-      "total_eur": 5754627.9,
-      "per_day_eur": 64658.7,
+      "total_eur": 5704930.6,
+      "per_day_eur": 63388.1,
       "vs_reference_eur": 1055.5,
       "pct_of_gap_captured": 100.0
     }
   },
   "parc_eolian": {
     "Fără prognoză (vinde mereu)": {
-      "total_eur": 10175764.0,
-      "per_day_eur": 114334.4,
+      "total_eur": 10154221.8,
+      "per_day_eur": 112824.7,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0
     },
     "Prognoza modelului": {
-      "total_eur": 10161730.0,
-      "per_day_eur": 114176.7,
-      "vs_reference_eur": -14034.0,
-      "pct_of_gap_captured": -1191.8
+      "total_eur": 10152358.4,
+      "per_day_eur": 112804.0,
+      "vs_reference_eur": -1863.4,
+      "pct_of_gap_captured": -158.2
     },
     "Prețul de ieri": {
-      "total_eur": 10131914.2,
-      "per_day_eur": 113841.7,
+      "total_eur": 10110371.9,
+      "per_day_eur": 112337.5,
       "vs_reference_eur": -43849.9,
       "pct_of_gap_captured": -3723.9
     },
     "Media pe 7 zile": {
-      "total_eur": 10175764.0,
-      "per_day_eur": 114334.4,
+      "total_eur": 10154221.8,
+      "per_day_eur": 112824.7,
       "vs_reference_eur": 0.0,
       "pct_of_gap_captured": 0.0
     },
     "Mix 50/50 model + media 7 zile": {
-      "total_eur": 10175818.5,
-      "per_day_eur": 114335.0,
-      "vs_reference_eur": 54.5,
-      "pct_of_gap_captured": 4.6
+      "total_eur": 10154221.8,
+      "per_day_eur": 112824.7,
+      "vs_reference_eur": 0.0,
+      "pct_of_gap_captured": 0.0
     },
     "Prevedere perfectă (plafon)": {
-      "total_eur": 10176941.6,
-      "per_day_eur": 114347.7,
+      "total_eur": 10155399.3,
+      "per_day_eur": 112837.8,
       "vs_reference_eur": 1177.5,
       "pct_of_gap_captured": 100.0
     }
