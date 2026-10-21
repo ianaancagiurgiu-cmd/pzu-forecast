@@ -30,7 +30,7 @@ def make_model(**overrides) -> lgb.LGBMRegressor:
 
 
 def fit(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, **overrides) -> lgb.LGBMRegressor:
-    return make_model(**overrides).fit(X[cols or F.FEATURES], y)
+    return make_model(**overrides).fit(X[cols or F.PRODUCTION_FEATURES], y)
 
 
 @dataclass
@@ -40,7 +40,7 @@ class ModelBundle:
     window_days: int
     conformal: ConformalInterval
     trained_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    features: list[str] = field(default_factory=lambda: list(F.FEATURES))
+    features: list[str] = field(default_factory=lambda: list(F.PRODUCTION_FEATURES))
 
     def save(self, directory: str | Path = "models") -> Path:
         path = Path(directory)
@@ -71,8 +71,8 @@ def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame
     F.verify_no_leakage(inputs, prices, target_day)
     idx = day_index(target_day)
     X = F.build_features(inputs, prices, idx)
-    if X["residual_load"].isna().any():
-        raise ValueError(f"Lipsesc forecast-uri de intrare pentru {pd.Timestamp(target_day).date()}")
+    if X["load_forecast_mw"].isna().any():
+        raise ValueError(f"Lipseste prognoza de consum pentru {pd.Timestamp(target_day).date()}")
     pred = pd.Series(bundle.model.predict(X[bundle.features]), index=idx)
     lo, hi = bundle.conformal.interval(pred)
     mean7d = pd.Series(X["price_rolling_mean_7d"].to_numpy(), index=idx)

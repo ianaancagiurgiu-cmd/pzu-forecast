@@ -19,12 +19,12 @@ import pandas as pd
 from pzu import backtest, db, features as F, metrics, model as M
 from pzu.config import TZ, get_settings
 from pzu.conformal import ConformalInterval
-from pzu.ingest import entsoe, openmeteo
+from pzu.ingest import entsoe
 from pzu.timegrid import day_index
 
 log = logging.getLogger("pipeline")
-REQUIRED_INPUTS = ["solar_forecast_mw", "wind_forecast_mw", "load_forecast_mw",
-                   "temp_c", "wind_speed_ms", "radiation_wm2"]
+# Singura intrare D+1 obligatorie: prognoza de consum. Solar/eolian ENTSO-E se publica dupa gate closure.
+REQUIRED_INPUTS = ["load_forecast_mw"]
 
 
 class NotReady(RuntimeError):
@@ -56,11 +56,6 @@ def ingest_recent(engine, client, through_day: date, lookback_days: int = 10) ->
     if not prices.empty:
         db.upsert_df(engine, db.prices_actual, _long(prices.dropna(how="all")), ["timestamp", "zone"])
     new = entsoe.fetch_inputs(client, start, end)
-    try:
-        weather = openmeteo.fetch_weather(start, through_day)
-        new = weather if new.empty else new.join(weather, how="outer")
-    except Exception as exc:  # vremea nu trebuie sa opreasca tot pipeline-ul
-        log.warning("Open-Meteo indisponibil: %s", exc)
     if new.empty:
         return
     new = new[[c for c in db.INPUT_COLS if c in new.columns]]

@@ -29,6 +29,7 @@ def main() -> None:
     ap.add_argument("--months", type=int, default=24)
     ap.add_argument("--days", type=int, default=200)
     ap.add_argument("--synthetic", action="store_true")
+    ap.add_argument("--weather", action="store_true", help="descarca si vremea (nefolosita de modelul de productie)")
     ap.add_argument("--chunk-days", type=int, default=30)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -55,8 +56,9 @@ def main() -> None:
         prices = pd.concat([p for p in pr_parts if not p.empty]).sort_index()
         inputs = inputs[~inputs.index.duplicated(keep="last")]
         prices = prices[~prices.index.duplicated(keep="last")]
-        weather = openmeteo.fetch_weather(start, today - pd.Timedelta(days=1), archive=True)
-        inputs = inputs.join(weather, how="outer")
+        if args.weather:
+            weather = openmeteo.fetch_weather(start, today - pd.Timedelta(days=1), archive=True)
+            inputs = inputs.join(weather, how="outer")
         source = "ENTSOE"
 
     db.upsert_df(engine, db.prices_actual, to_long_prices(prices, source), ["timestamp", "zone"])

@@ -43,6 +43,13 @@ FEATURE_SPECS: dict[str, tuple[str, int]] = {
 }
 FEATURES = list(FEATURE_SPECS)
 
+# Model de PRODUCTIE ("de dimineata"): doar ce e cunoscut la ora prognozei. Prognozele ENTSO-E solar/eolian pentru D+1
+# se publica dupa inchiderea pietei (verificat live: lipsesc dupa 12:00 CET), iar vremea si capacitatile nu au imbunatatit
+# rezultatele (scripts/experiments.py --set morning). Raman: prognoza de consum, calendar si preturile trecute.
+PRODUCTION_EXCLUDED = ["solar_forecast_mw", "wind_forecast_mw", "residual_load", "temp_c", "wind_speed_ms",
+                       "radiation_wm2", "capacity_bg_ro_mw", "capacity_ro_bg_mw"]
+PRODUCTION_FEATURES = [f for f in FEATURES if f not in PRODUCTION_EXCLUDED]
+
 # Experimentale: calculate mereu, dar NEfolosite de modelul de productie. In scripts/experiments.py nu au
 # imbunatatit valoarea pe baterie nici pe perioada de dezvoltare, nici pe holdout (vezi reports/experiments.json).
 EXPERIMENTAL_SPECS: dict[str, tuple[str, int]] = {
@@ -212,7 +219,7 @@ def build_training_set(inputs: pd.DataFrame, prices: pd.DataFrame, dropna_target
         raise ValueError("Lipsesc preturile RO")
     y = prices["RO"].reindex(idx)
     X = build_features(inputs, prices, idx, gen=gen, outages=outages)
-    mask = y.notna() & X["residual_load"].notna() & X["price_lag_24h"].notna()
+    mask = y.notna() & X["load_forecast_mw"].notna() & X["price_lag_24h"].notna()
     if not dropna_target:
         return X, y
     return X[mask], y[mask]

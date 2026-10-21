@@ -1,0 +1,126 @@
+{
+  "dezvoltare": {
+    "naive_lag24h": {
+      "MAE": 31.57,
+      "RMSE": 54.71,
+      "bateria_EUR": 300947.19,
+      "pct_plafon": 85.95
+    },
+    "naive_mean7d": {
+      "MAE": 33.59,
+      "RMSE": 57.69,
+      "bateria_EUR": 313535.62,
+      "pct_plafon": 89.55
+    },
+    "A. model actual (foloseste solar/eolian D+1, INDISPONIBIL dimineata)": {
+      "MAE": 27.09,
+      "RMSE": 46.8,
+      "bateria_EUR": 303534.03,
+      "pct_plafon": 86.69
+    },
+    "M0. dimineata: fara solar/eolian ENTSO-E, cu vreme (vreme REALA din arhiva = optimist)": {
+      "MAE": 27.07,
+      "RMSE": 47.65,
+      "bateria_EUR": 298763.46,
+      "pct_plafon": 85.33
+    },
+    "M1. dimineata: fara solar/eolian si fara vreme (complet onest)": {
+      "MAE": 27.69,
+      "RMSE": 48.95,
+      "bateria_EUR": 298692.71,
+      "pct_plafon": 85.31
+    },
+    "M2. ca M1, si fara capacitati de interconexiune": {
+      "MAE": 26.79,
+      "RMSE": 47.07,
+      "bateria_EUR": 296518.14,
+      "pct_plafon": 84.69
+    },
+    "A. model actual (foloseste solar/eolian D+1, INDISPONIBIL dimineata) + media7z 50/50": {
+      "MAE": 28.14,
+      "RMSE": 49.13,
+      "bateria_EUR": 312971.5,
+      "pct_plafon": 89.39
+    },
+    "M0. dimineata: fara solar/eolian ENTSO-E, cu vreme (vreme REALA din arhiva = optimist) + media7z 50/50": {
+      "MAE": 28.18,
+      "RMSE": 49.42,
+      "bateria_EUR": 311769.12,
+      "pct_plafon": 89.04
+    },
+    "M1. dimineata: fara solar/eolian si fara vreme (complet onest) + media7z 50/50": {
+      "MAE": 28.65,
+      "RMSE": 50.46,
+      "bateria_EUR": 312034.56,
+      "pct_plafon": 89.12
+    },
+    "M2. ca M1, si fara capacitati de interconexiune + media7z 50/50": {
+      "MAE": 28.23,
+      "RMSE": 49.49,
+      "bateria_EUR": 310610.55,
+      "pct_plafon": 88.71
+    }
+  },
+  "holdout": {
+    "naive_lag24h": {
+      "MAE": 32.93,
+      "RMSE": 49.59,
+      "bateria_EUR": 258210.7,
+      "pct_plafon": 80.59
+    },
+    "naive_mean7d": {
+      "MAE": 33.94,
+      "RMSE": 46.27,
+      "bateria_EUR": 280920.98,
+      "pct_plafon": 87.68
+    },
+    "A. model actual (foloseste solar/eolian D+1, INDISPONIBIL dimineata)": {
+      "MAE": 27.7,
+      "RMSE": 38.73,
+      "bateria_EUR": 278075.38,
+      "pct_plafon": 86.79
+    },
+    "M0. dimineata: fara solar/eolian ENTSO-E, cu vreme (vreme REALA din arhiva = optimist)": {
+      "MAE": 29.26,
+      "RMSE": 42.25,
+      "bateria_EUR": 275111.6,
+      "pct_plafon": 85.87
+    },
+    "M1. dimineata: fara solar/eolian si fara vreme (complet onest)": {
+      "MAE": 29.17,
+      "RMSE": 41.03,
+      "bateria_EUR": 273993.65,
+      "pct_plafon": 85.52
+    },
+    "M2. ca M1, si fara capacitati de interconexiune": {
+      "MAE": 29.42,
+      "RMSE": 41.03,
+      "bateria_EUR": 273963.96,
+      "pct_plafon": 85.51
+    },
+    "A. model actual (foloseste solar/eolian D+1, INDISPONIBIL dimineata) + media7z 50/50": {
+      "MAE": 28.23,
+      "RMSE": 38.75,
+      "bateria_EUR": 283013.25,
+      "pct_plafon": 88.33
+    },
+    "M0. dimineata: fara solar/eolian ENTSO-E, cu vreme (vreme REALA din arhiva = optimist) + media7z 50/50": {
+      "MAE": 28.81,
+      "RMSE": 39.6,
+      "bateria_EUR": 282529.87,
+      "pct_plafon": 88.18
+    },
+    "M1. dimineata: fara solar/eolian si fara vreme (complet onest) + media7z 50/50": {
+      "MAE": 29.37,
+      "RMSE": 40.21,
+      "bateria_EUR": 281422.18,
+      "pct_plafon": 87.84
+    },
+    "M2. ca M1, si fara capacitati de interconexiune + media7z 50/50": {
+      "MAE": 29.31,
+      "RMSE": 40.04,
+      "bateria_EUR": 280838.93,
+      "pct_plafon": 87.65
+    }
+  }
+}

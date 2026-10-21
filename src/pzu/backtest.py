@@ -44,7 +44,7 @@ def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: i
             else:
                 m = M.fit(X[tr], y[tr], cols, **model_overrides)
             last_fit = k
-        pred = m.predict(X.loc[te, cols or F.FEATURES])
+        pred = m.predict(X.loc[te, cols or F.PRODUCTION_FEATURES])
         if target == "residual":
             base = X.loc[te, "price_rolling_mean_7d"].to_numpy()
             pred = np.where(np.isnan(base), np.nan, base + pred)

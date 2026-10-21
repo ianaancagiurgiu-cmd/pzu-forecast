@@ -20,6 +20,18 @@ EXTRAS_SETS = {
     "H. + productie + indisponibilitati": dict(cols=OLD + F.GEN_FEATURES + F.OUTAGE_FEATURES),
     "I. H, corectie la media 7z": dict(cols=OLD + F.GEN_FEATURES + F.OUTAGE_FEATURES, target="residual"),
 }
+# Model "de dimineata": prognozele ENTSO-E solar/eolian pentru D+1 apar dupa inchiderea pietei, deci nu pot fi folosite.
+NO_RES = [f for f in OLD if f not in ("solar_forecast_mw", "wind_forecast_mw", "residual_load")]
+WEATHER = ["temp_c", "wind_speed_ms", "radiation_wm2"]
+NO_WEATHER = [f for f in NO_RES if f not in WEATHER]
+CAPACITY = ["capacity_bg_ro_mw", "capacity_ro_bg_mw"]
+NO_CAP = [f for f in NO_WEATHER if f not in CAPACITY]
+MORNING_SETS = {
+    "A. model actual (foloseste solar/eolian D+1, INDISPONIBIL dimineata)": dict(cols=OLD),
+    "M0. dimineata: fara solar/eolian ENTSO-E, cu vreme (vreme REALA din arhiva = optimist)": dict(cols=NO_RES),
+    "M1. dimineata: fara solar/eolian si fara vreme (complet onest)": dict(cols=NO_WEATHER),
+    "M2. ca M1, si fara capacitati de interconexiune": dict(cols=NO_CAP),
+}
 VARIANTS = {
     "A. nivel, variabile vechi": dict(cols=OLD),
     "B. nivel, variabile noi": dict(cols=NEW),
@@ -45,9 +57,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--trees", type=int, default=500)
-    ap.add_argument("--set", choices=["base", "extras"], default="base")
+    ap.add_argument("--set", choices=["base", "extras", "morning"], default="base")
     a = ap.parse_args()
-    variants = VARIANTS if a.set == "base" else EXTRAS_SETS
+    variants = {"base": VARIANTS, "extras": EXTRAS_SETS, "morning": MORNING_SETS}[a.set]
     eng = db.get_engine()
     db.ensure_real_data(eng)
     kw = {}

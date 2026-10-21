@@ -18,7 +18,8 @@ def data():
 
 def test_walk_forward_uses_only_past_and_beats_baseline(data):
     _, _, X, y = data
-    bt = backtest.walk_forward(X, y, window_days=30, n_days=25, **FAST)
+    # set complet de variabile: pe date sintetice pretul depinde de solar/eolian, deci verificam mecanismul de invatare
+    bt = backtest.walk_forward(X, y, window_days=30, n_days=25, cols=F.FEATURES, **FAST)
     assert bt["date"].nunique() == 25
     # ziua de test nu apare niciodata in antrenare: testam prin ordinea zilelor
     assert (bt.groupby("date").size() == 96).all()
@@ -84,3 +85,23 @@ def test_training_refuses_synthetic_data(tmp_path, data):
     db.upsert_df(eng, db.prices_actual, long, ["timestamp", "zone"])
     with pytest.raises(db.SyntheticDataError):
         db.ensure_real_data(eng)
+
+
+def test_production_model_uses_only_inputs_known_in_the_morning():
+    unavailable = {"solar_forecast_mw", "wind_forecast_mw", "residual_load", "temp_c", "wind_speed_ms",
+                   "radiation_wm2", "capacity_bg_ro_mw", "capacity_ro_bg_mw"}
+    assert not unavailable & set(F.PRODUCTION_FEATURES)
+    assert "load_forecast_mw" in F.PRODUCTION_FEATURES and "price_lag_24h" in F.PRODUCTION_FEATURES
+    assert M.ModelBundle(None, "v", 60, None).features == F.PRODUCTION_FEATURES
+
+
+def test_forecast_works_without_solar_wind_or_weather(data):
+    inputs, prices, X, y = data
+    cutoff = pd.Timestamp("2026-03-01", tz="Europe/Bucharest").tz_convert("UTC")
+    hist = prices[prices.index < cutoff]
+    only_load = inputs[["load_forecast_mw"]]                    # exact ce exista dimineata
+    Xh, yh = F.build_training_set(only_load[only_load.index < cutoff], hist)
+    bundle = M.ModelBundle(M.fit(Xh, yh, **FAST), "vtest", 20, ConformalInterval(0.10).fit(pd.Series([1.0, -1.0, 2.0],
+                           index=pd.date_range("2026-01-01", periods=3, freq="15min", tz="UTC"))))
+    out = M.forecast_day(bundle, only_load, hist, "2026-03-01")
+    assert len(out) == 96 and out["predicted_price"].notna().all()
