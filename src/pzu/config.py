@@ -18,3 +18,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+# Piete din aceeasi zona cuplata, mai departe de Romania: cod pastrat in DB -> cod ENTSO-E
+REGION_ZONES = {"AT": "AT", "DE": "DE_LU", "CZ": "CZ", "HR": "HR", "SI": "SI", "GR": "GR"}

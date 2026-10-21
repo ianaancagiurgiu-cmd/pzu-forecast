@@ -5,6 +5,7 @@ import pytest
 from pzu import backtest, db, features as F, model as M
 from pzu.conformal import ConformalInterval, rolling_intervals
 from pzu.synthetic import generate
+from pzu.timegrid import day_index
 
 FAST = {"n_estimators": 60}
 
@@ -58,20 +59,42 @@ def test_rolling_intervals_never_use_future_errors():
     assert (last["ci_upper"] - last["ci_lower"]).max() < 1   # intervalul nu "stie" de soc
 
 
+def _bundle(Xh, yh, version="vtest", fb=True):
+    cal = ConformalInterval(0.10).fit(pd.Series([1.0, -1.0, 2.0] * 40, index=pd.date_range("2026-01-01", periods=120, freq="15min", tz="UTC")))
+    return M.ModelBundle(M.fit(Xh, yh, **FAST), version, 20, cal,
+                         fallback_model=M.fit(Xh, yh, cols=F.BASE_PRODUCTION_FEATURES, **FAST) if fb else None,
+                         fallback_features=list(F.BASE_PRODUCTION_FEATURES) if fb else None)
+
+
 def test_forecast_day_and_bundle_roundtrip(data, tmp_path):
     inputs, prices, X, y = data
     cutoff = pd.Timestamp("2026-03-01", tz="Europe/Bucharest").tz_convert("UTC")
     hist = prices[prices.index < cutoff]       # preturile D+1 nu exista la ora prognozei
     Xh, yh = F.build_training_set(inputs[inputs.index < cutoff], hist)
-    m = M.fit(Xh, yh, **FAST)
-    bt = backtest.walk_forward(Xh, yh, 20, 20, **FAST)
-    conf = ConformalInterval(0.10).fit(bt["y"] - bt["pred"])
-    bundle = M.ModelBundle(m, "vtest", 20, conf)
-    out = M.forecast_day(bundle, inputs, hist, "2026-03-01")
-    assert len(out) == 96 and (out["ci_lower"] < out["predicted_price"]).all()
+    bundle = _bundle(Xh, yh)
+    out = M.forecast_day(bundle, inputs, hist, "2026-03-01")           # fara consumul vecinilor -> model de rezerva
+    assert len(out) == 96 and (out["ci_lower"] < out["predicted_price"]).all() and (out["variant"] == "fallback").all()
     assert (out["ci_upper"] > out["predicted_price"]).all()
     loaded = M.ModelBundle.load(bundle.save(tmp_path))
     pd.testing.assert_frame_equal(out, M.forecast_day(loaded, inputs, hist, "2026-03-01"))
+
+
+def test_main_model_used_only_when_neighbor_load_is_complete(data):
+    inputs, prices, X, y = data
+    cutoff = pd.Timestamp("2026-03-01", tz="Europe/Bucharest").tz_convert("UTC")
+    hist = prices[prices.index < cutoff]
+    idx_all = inputs.index
+    nload = pd.DataFrame({z: 3000.0 + np.arange(len(idx_all)) % 96 for z in ("HU", "BG", "RS", "SK")}, index=idx_all)
+    Xh, yh = F.build_training_set(inputs[inputs.index < cutoff], hist, nload=nload)
+    bundle = _bundle(Xh, yh)
+    full = M.forecast_day(bundle, inputs, hist, "2026-03-01", nload=nload)
+    assert (full["variant"] == "main").all()
+    partial = nload.copy()
+    partial.loc[day_index("2026-03-01")[10:20], "HU"] = np.nan            # lipsesc cateva intervale
+    assert (M.forecast_day(bundle, inputs, hist, "2026-03-01", nload=partial)["variant"] == "fallback").all()
+    no_fb = _bundle(Xh, yh, fb=False)
+    with pytest.raises(ValueError, match="vecinilor"):
+        M.forecast_day(no_fb, inputs, hist, "2026-03-01", nload=partial)
 
 
 def test_training_refuses_synthetic_data(tmp_path, data):
@@ -99,9 +122,7 @@ def test_forecast_works_without_solar_wind_or_weather(data):
     inputs, prices, X, y = data
     cutoff = pd.Timestamp("2026-03-01", tz="Europe/Bucharest").tz_convert("UTC")
     hist = prices[prices.index < cutoff]
-    only_load = inputs[["load_forecast_mw"]]                    # exact ce exista dimineata
+    only_load = inputs[["load_forecast_mw"]]                    # exact ce exista dimineata din Romania
     Xh, yh = F.build_training_set(only_load[only_load.index < cutoff], hist)
-    bundle = M.ModelBundle(M.fit(Xh, yh, **FAST), "vtest", 20, ConformalInterval(0.10).fit(pd.Series([1.0, -1.0, 2.0],
-                           index=pd.date_range("2026-01-01", periods=3, freq="15min", tz="UTC"))))
-    out = M.forecast_day(bundle, only_load, hist, "2026-03-01")
+    out = M.forecast_day(_bundle(Xh, yh), only_load, hist, "2026-03-01")
     assert len(out) == 96 and out["predicted_price"].notna().all()

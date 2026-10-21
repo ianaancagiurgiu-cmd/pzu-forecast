@@ -37,7 +37,7 @@ def main() -> None:
     keep = X["act_solar"].notna() & X["act_wind"].notna()
     X, y = X[keep], y[keep]
     n_days = pd.Series(X.index.tz_convert("Europe/Bucharest").date).nunique() - 62
-    P = F.PRODUCTION_FEATURES
+    P = F.BASE_PRODUCTION_FEATURES
     variants = {"M": P, "A": P + ["solar_forecast_mw", "wind_forecast_mw", "residual_load"],
                 "O": P + ["act_solar", "act_wind", "act_resid"],
                 "N": P + [f"nb_{z}" for z in ("HU", "BG", "RS", "SK")]}

@@ -33,7 +33,8 @@ def load_backtest(days: int, window: int) -> pd.DataFrame:
         return bt
     eng = db.get_engine()
     db.ensure_real_data(eng)
-    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng))
+    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng),
+                                nload=db.read_neighbor_load(eng))
     bt = backtest.walk_forward(X, y, window, days)
     CACHE_BT.parent.mkdir(parents=True, exist_ok=True)
     bt.to_csv(CACHE_BT)

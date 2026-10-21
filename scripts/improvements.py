@@ -22,7 +22,7 @@ from pzu.config import TZ
 
 BLOCKS = {"noapte": (0, 6), "dimineata": (6, 10), "pranz": (10, 16), "seara": (16, 22), "tarziu": (22, 24)}
 DEV_SRC = ["load_forecast_mw", "price_rolling_mean_7d", "price_lag_24h", "price_lag_7d"]
-SHAPE_COLS = F.PRODUCTION_FEATURES + [c + "_dev" for c in DEV_SRC]
+SHAPE_COLS = F.BASE_PRODUCTION_FEATURES + [c + "_dev" for c in DEV_SRC]
 LEVEL_COLS = ["prev_day_mean", "mean7d_day", "load_day", "weekend", "is_holiday"]
 
 
@@ -56,13 +56,13 @@ def fit_all(X, y, ydm, date, train_days, trees):
 
 def predict_all(models, X, idx):
     Xt = X.loc[idx]
-    out = {"V0": models["V0"].predict(Xt[F.PRODUCTION_FEATURES])}
+    out = {"V0": models["V0"].predict(Xt[F.BASE_PRODUCTION_FEATURES])}
     p2 = np.full(len(idx), np.nan)
     h = Xt["hour_local"].to_numpy()
     for name, (a, b) in BLOCKS.items():
         m = (h >= a) & (h < b)
         if name in models["blocks"] and m.any():
-            p2[m] = models["blocks"][name].predict(Xt[F.PRODUCTION_FEATURES][m])
+            p2[m] = models["blocks"][name].predict(Xt[F.BASE_PRODUCTION_FEATURES][m])
     out["V2"] = p2
     sh = models["shape"].predict(Xt[SHAPE_COLS])
     out["V3"] = models["level"].predict(Xt[LEVEL_COLS].iloc[[0]])[0] + sh

@@ -18,7 +18,8 @@ def main() -> None:
     a = ap.parse_args()
     eng = db.get_engine()
     db.ensure_real_data(eng)
-    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng))
+    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng),
+                                nload=db.read_neighbor_load(eng))
     res = {}
     for name, every in (("zilnic", 1), ("saptamanal", 7), ("lunar", 28)):
         bt = backtest.walk_forward(X, y, 60, a.days, refit_every=every, n_estimators=a.trees)

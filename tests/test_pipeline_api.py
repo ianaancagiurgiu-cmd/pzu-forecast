@@ -234,3 +234,13 @@ def test_daily_falls_back_to_existing_model_if_refresh_fails(env, monkeypatch):
     eng, _ = env
     monkeypatch.setattr(pipeline, "refresh_model", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     assert "salvat" in pipeline.daily(eng, OfflineClient(), DAY, force=True)
+
+
+def test_regional_features_are_dropped_when_history_is_missing(env):
+    eng, _ = env
+    X, y = __import__("pzu.features", fromlist=["x"]).build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng))
+    cols = pipeline._main_cols(X, slice(None))          # DB-ul de test nu are preturi regionale / consum vecini
+    from pzu import features as F
+    assert not set(F.NEIGHBOR_LOADS) & set(cols)                       # fara consum vecini in DB
+    assert not any(c in cols for c in ("price_at_lag_24h", "price_de_lag_24h", "price_gr_lag_7d"))
+    assert set(F.BASE_PRODUCTION_FEATURES) <= set(cols)

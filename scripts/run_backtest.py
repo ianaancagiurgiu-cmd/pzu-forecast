@@ -30,7 +30,7 @@ def main() -> None:
         inputs, prices = db.read_df(eng, db.forecasts_input), db.read_prices(eng)
         windows, n_days, overrides = [int(w) for w in a.windows.split(",")], a.days, {}
 
-    X, y = F.build_training_set(inputs, prices)
+    X, y = F.build_training_set(inputs, prices, nload=None if a.smoke_test else db.read_neighbor_load(eng))
     results = {}
     for w in windows:
         bt = backtest.walk_forward(X, y, w, n_days, **overrides)

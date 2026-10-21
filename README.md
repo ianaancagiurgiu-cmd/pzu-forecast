@@ -82,6 +82,21 @@ scade cu 84%, dar acestea apar abia după 12:00. Eroarea rămasă (~25) vine din
 cunoaștem dimineața (gaz, regenerabile din regiune, fluxuri transfrontaliere). Datele de producție reală sunt în
 `generation_actual` (`scripts/backfill_production.py`).
 
+## Informație regională (`scripts/region_experiment.py`, 669 de zile): adoptată
+Variabile adăugate modelului de dimineață (R3): prețurile de ieri și de acum 7 zile din AT, DE, CZ, HR, SI, GR, media și
+dispersia regională, și prognoza de consum D+1 a vecinilor (HU, BG, RS, SK):
+
+| | MAE | MAE iarna | Baterie (tot) | iarna | cu mix 50/50 |
+|---|---|---|---|---|---|
+| Modelul simplu (M) | 24,9 | 26,9 | 82,4% | 63,6% | 86,2% |
+| + prețuri regionale (R1) | 24,9 | 26,9 | 83,5% | 65,4% | 86,9% |
+| + consum vecini (R2) | 24,3 | 25,8 | 83,6% | 68,4% | 86,8% |
+| **Ambele (R3), în producție** | **24,0** | **25,2** | **84,6%** | **69,7%** | 86,9% |
+
+Plasă de siguranță: dacă prognoza de consum a vecinilor lipsește la momentul rulării, se folosește modelul simplu (M),
+antrenat în paralel (`variant` = `main` / `fallback` în `features_used`). Variabilele regionale se folosesc la
+antrenare doar dacă au istoric suficient. Date: `scripts/backfill_region.py` (workflow `Backfill regiune`).
+
 ## Reantrenare zilnică
 Modelul se refit-uiește o dată pe zi, la prima rulare reușită a dimineții (secunde), pe ultimele 60 de zile **anterioare
 zilei prognozate** (nu antrenează niciodată pe ziua pe care o prognozează, nici la re-rulări târzii). Calibrarea

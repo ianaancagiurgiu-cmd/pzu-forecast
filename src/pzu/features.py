@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from pzu.calendar_ro import is_holiday
-from pzu.config import NEIGHBORS
+from pzu.config import NEIGHBORS, REGION_ZONES
 from pzu.timegrid import day_index, to_local
 
 H24 = pd.Timedelta(hours=24)
@@ -48,7 +48,19 @@ FEATURES = list(FEATURE_SPECS)
 # rezultatele (scripts/experiments.py --set morning). Raman: prognoza de consum, calendar si preturile trecute.
 PRODUCTION_EXCLUDED = ["solar_forecast_mw", "wind_forecast_mw", "residual_load", "temp_c", "wind_speed_ms",
                        "radiation_wm2", "capacity_bg_ro_mw", "capacity_ro_bg_mw"]
-PRODUCTION_FEATURES = [f for f in FEATURES if f not in PRODUCTION_EXCLUDED]
+BASE_PRODUCTION_FEATURES = [f for f in FEATURES if f not in PRODUCTION_EXCLUDED]   # model de rezerva
+
+# Informatie regionala cunoscuta dimineata: preturile de ieri din piete mai departe (AT, DE, CZ, HR, SI, GR) si
+# prognoza de consum D+1 a vecinilor (HU, BG, RS, SK). In scripts/region_experiment.py: eroare -3,6%, baterie +2,2 puncte.
+REGION_LAG_SPECS: dict[str, tuple[str, int]] = {
+    **{f"price_{z.lower()}_lag_24h": ("lag", 24) for z in REGION_ZONES},
+    **{f"price_{z.lower()}_lag_7d": ("lag", 168) for z in REGION_ZONES},
+    "region_mean_lag24h": ("lag", 24), "region_std_lag24h": ("lag", 24), "ro_minus_region_lag24h": ("lag", 24),
+}
+NEIGHBOR_LOAD_SPECS: dict[str, tuple[str, int]] = {f"load_{z.lower()}": ("forecast", 0) for z in NEIGHBORS}
+REGION_LAGS = list(REGION_LAG_SPECS)
+NEIGHBOR_LOADS = list(NEIGHBOR_LOAD_SPECS)
+PRODUCTION_FEATURES = BASE_PRODUCTION_FEATURES + REGION_LAGS + NEIGHBOR_LOADS
 
 # Experimentale: calculate mereu, dar NEfolosite de modelul de productie. In scripts/experiments.py nu au
 # imbunatatit valoarea pe baterie nici pe perioada de dezvoltare, nici pe holdout (vezi reports/experiments.json).
@@ -74,7 +86,7 @@ OUTAGE_CUTOFF_HOURS = 6   # ora locala din ziua D pana la care documentele sunt 
 INPUT_FEATURES = [f for f, (kind, _) in FEATURE_SPECS.items() if kind == "forecast" and f != "residual_load"]
 
 
-def assert_no_leakage(specs: dict[str, tuple[str, int]] = {**FEATURE_SPECS, **EXPERIMENTAL_SPECS}) -> None:
+def assert_no_leakage(specs: dict[str, tuple[str, int]] = {**FEATURE_SPECS, **EXPERIMENTAL_SPECS, **REGION_LAG_SPECS}) -> None:
     """Verificare statica: niciun feature de pret nu se uita mai aproape de 24h."""
     bad = [n for n, (kind, lag) in specs.items() if kind == "lag" and lag < 24]
     if bad:
@@ -157,7 +169,8 @@ def outage_features(outages: pd.DataFrame | None, index: pd.DatetimeIndex) -> pd
 
 
 def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.DatetimeIndex,
-                   gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None) -> pd.DataFrame:
+                   gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None,
+                   nload: pd.DataFrame | None = None) -> pd.DataFrame:
     """Matricea de feature-uri pentru `index` (UTC). `prices`: format lat, coloane = zone."""
     assert_no_leakage()
     index = pd.DatetimeIndex(index)
@@ -196,7 +209,17 @@ def build_features(inputs: pd.DataFrame, prices: pd.DataFrame, index: pd.Datetim
         src = col.replace("_lag24h", "_mw")
         out[col] = _lag(gen[src] if gen is not None and src in gen else None, index, H24)
     out = out.join(outage_features(outages, index))
-    return out[FEATURES + EXPERIMENTAL + GEN_FEATURES + OUTAGE_FEATURES]
+    for z in REGION_ZONES:   # piete mai departe: preturile de ieri si de acum 7 zile
+        s_z = prices[z] if z in prices else None
+        out[f"price_{z.lower()}_lag_24h"] = _lag(s_z, index, H24)
+        out[f"price_{z.lower()}_lag_7d"] = _lag(s_z, index, 7 * H24)
+    lag24 = out[[f"price_{z.lower()}_lag_24h" for z in [*REGION_ZONES, *NEIGHBORS]]]
+    out["region_mean_lag24h"] = lag24.mean(axis=1)
+    out["region_std_lag24h"] = lag24.std(axis=1)
+    out["ro_minus_region_lag24h"] = out["price_lag_24h"] - out["region_mean_lag24h"]
+    for z in NEIGHBORS:      # prognoza de consum D+1 a vecinilor (publicata inainte de gate closure)
+        out[f"load_{z.lower()}"] = nload[z].reindex(index).to_numpy(dtype=float) if nload is not None and z in nload else np.nan
+    return out[FEATURES + EXPERIMENTAL + GEN_FEATURES + OUTAGE_FEATURES + REGION_LAGS + NEIGHBOR_LOADS]
 
 
 def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day, **extra) -> None:
@@ -212,13 +235,14 @@ def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day, **
 
 
 def build_training_set(inputs: pd.DataFrame, prices: pd.DataFrame, dropna_target: bool = True,
-                       gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None):
+                       gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None,
+                       nload: pd.DataFrame | None = None):
     """(X, y) pe toate intervalele unde exista pret RO si forecast-uri de intrare."""
     idx = inputs.index
     if "RO" not in prices:
         raise ValueError("Lipsesc preturile RO")
     y = prices["RO"].reindex(idx)
-    X = build_features(inputs, prices, idx, gen=gen, outages=outages)
+    X = build_features(inputs, prices, idx, gen=gen, outages=outages, nload=nload)
     mask = y.notna() & X["load_forecast_mw"].notna() & X["price_lag_24h"].notna()
     if not dropna_target:
         return X, y

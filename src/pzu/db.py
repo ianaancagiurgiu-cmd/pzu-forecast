@@ -62,6 +62,14 @@ generation_actual = Table(
     *[Column(c, Float) for c in GEN_COLS],
 )
 
+# Prognoza de consum D+1 a vecinilor (ENTSO-E A65), cunoscuta dimineata
+neighbor_load = Table(
+    "neighbor_load", metadata,
+    Column("timestamp", TS, primary_key=True),
+    Column("zone", String(2), primary_key=True),
+    Column("load_forecast_mw", Float),
+)
+
 # Documente de indisponibilitate (ENTSO-E A77/A80): se pastreaza momentul crearii, ca sa putem
 # reconstrui ce se stia la ora prognozei (fara informatii aparute dupa).
 outages = Table(
@@ -219,3 +227,12 @@ def read_actual_ro(engine: Engine, idx: pd.DatetimeIndex) -> pd.Series:
         return pd.Series(np.nan, index=idx)
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.set_index("timestamp")["price_eur_mwh"].reindex(idx)
+
+
+def read_neighbor_load(engine: Engine) -> pd.DataFrame:
+    """Prognoza de consum D+1 a vecinilor, format lat: index=timestamp UTC, coloane=zone."""
+    df = read_df(engine, neighbor_load, index=None)
+    if df.empty:
+        return pd.DataFrame()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.pivot(index="timestamp", columns="zone", values="load_forecast_mw").apply(pd.to_numeric, errors="coerce").sort_index()

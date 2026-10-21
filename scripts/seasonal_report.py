@@ -22,7 +22,8 @@ def main() -> None:
     a = ap.parse_args()
     eng = db.get_engine()
     db.ensure_real_data(eng)
-    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng))
+    X, y = F.build_training_set(db.read_df(eng, db.forecasts_input), db.read_prices(eng),
+                                nload=db.read_neighbor_load(eng))
     n_days = pd.Series(X.index.tz_convert("Europe/Bucharest").date).nunique() - a.window - 2
     bt = backtest.walk_forward(X, y, a.window, n_days, refit_every=7, n_estimators=a.trees)
     bt = bt.dropna(subset=["y", "pred", "naive_lag24h", "naive_mean7d"])
