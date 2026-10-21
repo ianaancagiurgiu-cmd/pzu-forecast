@@ -162,3 +162,18 @@ def fetch_outages(client, start, end, zone: str = "RO") -> pd.DataFrame:
     keep = ["mrid", "revision", "resource_id", "start", "zone", "created", "end", "plant_type", "business_type",
             "doc_status", "nominal_mw", "available_mw"]
     return df[keep].drop_duplicates(["mrid", "revision", "resource_id", "start"]).reset_index(drop=True)
+
+
+def fetch_actual_solar_wind(client, start, end, zone: str = "RO") -> pd.DataFrame:
+    """Productia REALA solara si eoliana (MW). Folosita doar pentru antrenarea modelului vreme -> productie
+    si pentru teste de limita superioara; nu exista la ora prognozei."""
+    s, e = _span(start, end)
+    out = {}
+    for col, psr in (("gen_solar_mw", "B16"), ("gen_wind_mw", "B19")):
+        raw = _safe(client.query_generation, zone, start=s, end=e, psr_type=psr, what=f"productie reala {psr}")
+        if raw is None or len(raw) == 0:
+            continue
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw = raw.loc[:, [c for c in raw.columns if c[1] != "Actual Consumption"]]
+        out[col] = to_15min(raw.iloc[:, 0].astype(float).rename(col))
+    return pd.DataFrame(out)

@@ -1,0 +1,50 @@
+{
+  "naive_lag24h": {
+    "MAE": 28.23,
+    "MAE_iarna": 28.5,
+    "MAE_vara": 26.57,
+    "baterie_%_tot": 81.35,
+    "baterie_%_iarna": 60.54,
+    "baterie_%_vara": 87.46
+  },
+  "naive_mean7d": {
+    "MAE": 28.28,
+    "MAE_iarna": 27.31,
+    "MAE_vara": 27.67,
+    "baterie_%_tot": 86.83,
+    "baterie_%_iarna": 71.01,
+    "baterie_%_vara": 90.51
+  },
+  "M": {
+    "MAE": 24.9,
+    "MAE_iarna": 26.85,
+    "MAE_vara": 22.28,
+    "baterie_%_tot": 82.42,
+    "baterie_%_iarna": 63.62,
+    "baterie_%_vara": 87.27
+  },
+  "N": {
+    "MAE": 4.14,
+    "MAE_iarna": 2.8,
+    "MAE_vara": 4.91,
+    "baterie_%_tot": 96.88,
+    "baterie_%_iarna": 95.3,
+    "baterie_%_vara": 97.53
+  },
+  "M+medie7": {
+    "MAE": 24.51,
+    "MAE_iarna": 24.41,
+    "MAE_vara": 22.89,
+    "baterie_%_tot": 86.27,
+    "baterie_%_iarna": 70.0,
+    "baterie_%_vara": 90.0
+  },
+  "N+medie7": {
+    "MAE": 15.23,
+    "MAE_iarna": 14.35,
+    "MAE_vara": 15.35,
+    "baterie_%_tot": 95.39,
+    "baterie_%_iarna": 91.72,
+    "baterie_%_vara": 96.47
+  }
+}

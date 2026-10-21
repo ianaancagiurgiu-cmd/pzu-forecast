@@ -65,6 +65,23 @@ depinde de Open-Meteo. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (fa
 Atenție: regula „reduc producția când prețul prognozat e negativ” bazată pe model a pierdut bani la parcuri
 în simulare; nu o folosi.
 
+## Limite superioare (`scripts/production_oracle.py`, 668 de zile): ce informație ar ajuta, în principiu?
+Testăm modelul de dimineață (M) cu informație pe care **nu o avem dimineața**, ca să aflăm cât ar putea câștiga:
+
+| Intrare suplimentară | MAE | MAE iarna | Baterie (tot) | cu mix 50/50 |
+|---|---|---|---|---|
+| Niciuna (M, modelul de producție) | 24,9 | 26,9 | 82,4% | 86,3% |
+| + prognoza operatorilor solar/eolian D+1 (A) | 24,0 | 24,7 | 84,1% | 87,3% |
+| + producția solară/eoliană REALĂ a zilei (O) | 24,4 | 25,6 | 83,8% | 87,0% |
+| + prețurile REALE ale vecinilor din aceeași zi (N) | **4,1** | 2,8 | 96,9% | 95,4% |
+
+Concluzii: (1) cunoașterea producției solare/eoliene din România, chiar perfectă, aduce cel mult ~0,9 EUR/MWh (3,6%)
+și ~1 punct la baterie, deci un lanț vreme → producție → preț nu poate aduce mai mult, iar o estimare proprie ar aduce
+mai puțin; (2) prețul României e stabilit **regional** (cuplarea piețelor): cu prețurile vecinilor din aceeași zi eroarea
+scade cu 84%, dar acestea apar abia după 12:00. Eroarea rămasă (~25) vine din condiții regionale de mâine pe care nu le
+cunoaștem dimineața (gaz, regenerabile din regiune, fluxuri transfrontaliere). Datele de producție reală sunt în
+`generation_actual` (`scripts/backfill_production.py`).
+
 ## Reantrenare zilnică
 Modelul se refit-uiește o dată pe zi, la prima rulare reușită a dimineții (secunde), pe ultimele 60 de zile **anterioare
 zilei prognozate** (nu antrenează niciodată pe ziua pe care o prognozează, nici la re-rulări târzii). Calibrarea

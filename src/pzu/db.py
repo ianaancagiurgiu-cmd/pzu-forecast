@@ -54,7 +54,8 @@ forecast_accuracy = Table(
 )
 
 
-GEN_COLS = ["gen_nuclear_mw", "gen_hydro_res_mw", "gen_hydro_ror_mw", "gen_gas_mw", "gen_coal_mw"]
+GEN_COLS = ["gen_nuclear_mw", "gen_hydro_res_mw", "gen_hydro_ror_mw", "gen_gas_mw", "gen_coal_mw",
+            "gen_solar_mw", "gen_wind_mw"]
 generation_actual = Table(
     "generation_actual", metadata,
     Column("timestamp", TS, primary_key=True),
