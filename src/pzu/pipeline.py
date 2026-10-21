@@ -65,6 +65,41 @@ def ingest_recent(engine, client, through_day: date, lookback_days: int = 10) ->
     db.upsert_df(engine, db.forecasts_input, merged, ["timestamp"])
 
 
+# -------------------------------------------------------------- reantrenare ----
+CALIBRATION_MAX_AGE_DAYS = 7   # intervalele de incredere (backtest 90 zile) se recalculeaza saptamanal
+
+
+def _local_date(ts: str | None, now: pd.Timestamp):
+    return None if not ts else pd.Timestamp(ts).tz_convert(TZ).date()
+
+
+def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None,
+                  before: pd.Timestamp | None = None) -> M.ModelBundle:
+    """Reantrenare zilnica: modelul se refit-uieste o data pe zi pe ultimele `window_days` zile (secunde).
+    Calibrarea intervalelor (backtest 90 zile, ~2 min) se refoloseste si se recalculeaza o data pe saptamana.
+    Idempotent: dupa prima reantrenare a zilei, incercarile urmatoare nu mai fac nimic."""
+    now = now or pd.Timestamp.now(tz=TZ)
+    today = local_today(now)
+    if _local_date(bundle.trained_at, now) == today:
+        return bundle
+    cal_day = _local_date(getattr(bundle, "calibrated_at", None), now)
+    if cal_day is None or (today - cal_day).days >= CALIBRATION_MAX_AGE_DAYS:
+        retrain(engine, None, bundle.window_days, now=now, before=before)   # reantrenare completa + recalibrare
+        stored = db.load_model_bytes(engine)
+        return M.ModelBundle.from_bytes(stored[1])
+    X, y = F.build_training_set(db.read_df(engine, db.forecasts_input), db.read_prices(engine))
+    if before is not None:   # nu antrenam niciodata pe ziua pe care o prognozam
+        X, y = X[X.index < before], y[y.index < before]
+    dates = pd.Series(X.index.tz_convert(TZ).date, index=X.index)
+    keep = dates.isin(sorted(dates.unique())[-bundle.window_days:]).to_numpy()
+    final = M.fit(X[keep], y[keep], cols=bundle.features)
+    version = f"v2-{today:%Y%m%d}"
+    fresh = M.ModelBundle(final, version, bundle.window_days, bundle.conformal,
+                          features=bundle.features, calibrated_at=bundle.calibrated_at)
+    db.save_model_bytes(engine, version, fresh.to_bytes())
+    return fresh
+
+
 # ------------------------------------------------------------------- daily ----
 def check_inputs_ready(inputs: pd.DataFrame, day) -> None:
     idx = day_index(day)
@@ -89,6 +124,11 @@ def daily(engine, client, day: date | None = None, force: bool = False,
     ingest_recent(engine, client, day)
     inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
     check_inputs_ready(inputs, day)
+    try:   # reantrenare zilnica; la esec se foloseste modelul existent
+        bundle = refresh_model(engine, bundle, now, before=idx[0])
+    except Exception as exc:
+        log.warning("Reantrenarea zilnica a esuat, folosesc modelul existent: %s", exc)
+    inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
     # la ora prognozei nu exista preturile din ziua tinta; le taiem explicit (si pentru re-rulari tarzii)
     prices = prices[prices.index < idx[0]]
     out = M.forecast_day(bundle, inputs, prices, day)
@@ -129,11 +169,15 @@ def evaluate(engine, client, day: date | None = None, force: bool = False,
 
 # ----------------------------------------------------------------- retrain ----
 def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
-            version: str | None = None, now: pd.Timestamp | None = None) -> str:
+            version: str | None = None, now: pd.Timestamp | None = None,
+            before: pd.Timestamp | None = None) -> str:
+    """`before`: antrenarea/calibrarea folosesc doar date anterioare (ex. inceputul zilei prognozate)."""
     db.ensure_real_data(engine)
     if client is not None:
         ingest_recent(engine, client, local_today(now), lookback_days=14)
     X, y = F.build_training_set(db.read_df(engine, db.forecasts_input), db.read_prices(engine))
+    if before is not None:
+        X, y = X[X.index < before], y[y.index < before]
     if len(X) == 0:
         raise RuntimeError("Nu exista date de antrenare (ruleaza scripts/backfill.py)")
     bt = backtest.walk_forward(X, y, window_days, calib_days)
@@ -141,8 +185,8 @@ def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
     dates = pd.Series(X.index.tz_convert(TZ).date, index=X.index)
     keep = dates.isin(sorted(dates.unique())[-window_days:]).to_numpy()
     final = M.fit(X[keep], y[keep])
-    version = version or f"v1-{local_today(now):%Y%m%d}"
-    bundle = M.ModelBundle(final, version, window_days, conf)
+    version = version or f"v2-{local_today(now):%Y%m%d}"
+    bundle = M.ModelBundle(final, version, window_days, conf, calibrated_at=pd.Timestamp.now(tz="UTC").isoformat())
     db.save_model_bytes(engine, version, bundle.to_bytes())
     m = backtest.evaluate(bt)["lightgbm"]
     return f"model {version} salvat (backtest {calib_days}z: MAE {m['mae']:.2f}, coverage {m.get('coverage_90', float('nan')):.2f})"

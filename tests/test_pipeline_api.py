@@ -178,3 +178,59 @@ def test_actual_is_null_until_published(env, client):
         conn.execute(text("DELETE FROM prices_actual WHERE zone='RO' AND timestamp >= '2026-03-01 22:00:00'"))
     body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
     assert all(x["actual_price"] is None for x in body["intervals"])
+
+
+# ---------------------------------------------------------------- reantrenare zilnica ----
+def _stale(bundle, days_ago_trained=1, days_ago_calibrated=2):
+    import dataclasses
+    now = pd.Timestamp.now(tz="UTC")
+    return dataclasses.replace(bundle, trained_at=(now - pd.Timedelta(days=days_ago_trained)).isoformat(),
+                               calibrated_at=(now - pd.Timedelta(days=days_ago_calibrated)).isoformat())
+
+
+def _stored(eng):
+    return M.ModelBundle.from_bytes(db.load_model_bytes(eng)[1])
+
+
+def test_refresh_is_a_noop_when_model_is_fresh(env):
+    eng, _ = env
+    b = _stored(eng)
+    assert pipeline.refresh_model(eng, b) is b
+
+
+def test_refresh_refits_but_keeps_calibration_when_stale(env):
+    eng, _ = env
+    b = _stale(_stored(eng))
+    fresh = pipeline.refresh_model(eng, b)
+    assert fresh.version != b.version and fresh.version.startswith("v2-")
+    assert fresh.conformal is b.conformal and fresh.features == b.features       # calibrarea refolosita
+    assert _stored(eng).version == fresh.version                                  # salvat in DB
+    assert pipeline.refresh_model(eng, fresh) is fresh                            # a doua incercare: nimic
+
+
+def test_refresh_recalibrates_when_calibration_is_old(env):
+    eng, _ = env
+    b = _stale(_stored(eng), days_ago_calibrated=10)
+    fresh = pipeline.refresh_model(eng, b, before=day_index(DAY)[0])
+    assert fresh.calibrated_at is not None and fresh.conformal is not b.conformal
+
+
+def test_refresh_never_trains_on_the_target_day(env, monkeypatch):
+    eng, _ = env
+    seen = {}
+    real = M.fit
+
+    def spy(X, y, cols=None, **kw):
+        seen["last"] = X.index.max()
+        return real(X, y, cols, **kw)
+
+    monkeypatch.setattr(M, "fit", spy)
+    cutoff = day_index(DAY)[0]
+    pipeline.refresh_model(eng, _stale(_stored(eng)), before=cutoff)
+    assert seen["last"] < cutoff
+
+
+def test_daily_falls_back_to_existing_model_if_refresh_fails(env, monkeypatch):
+    eng, _ = env
+    monkeypatch.setattr(pipeline, "refresh_model", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    assert "salvat" in pipeline.daily(eng, OfflineClient(), DAY, force=True)

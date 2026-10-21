@@ -40,6 +40,7 @@ class ModelBundle:
     window_days: int
     conformal: ConformalInterval
     trained_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    calibrated_at: str | None = None   # cand au fost calculate intervalele de incredere (backtest)
     features: list[str] = field(default_factory=lambda: list(F.PRODUCTION_FEATURES))
 
     def save(self, directory: str | Path = "models") -> Path:

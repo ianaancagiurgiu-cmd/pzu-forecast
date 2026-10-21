@@ -65,6 +65,14 @@ depinde de Open-Meteo. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (fa
 Atenție: regula „reduc producția când prețul prognozat e negativ” bazată pe model a pierdut bani la parcuri
 în simulare; nu o folosi.
 
+## Reantrenare zilnică
+Modelul se refit-uiește o dată pe zi, la prima rulare reușită a dimineții (secunde), pe ultimele 60 de zile **anterioare
+zilei prognozate** (nu antrenează niciodată pe ziua pe care o prognozează, nici la re-rulări târzii). Calibrarea
+intervalelor de încredere (backtest 90 de zile, ~2–3 min) se recalculează o dată pe săptămână. La eșec, se folosește
+modelul existent. Măsurat pe ultimele 200 de zile (`scripts/refit_frequency.py`): eroare 27,1 zilnic, 28,0 săptămânal,
+29,3 lunar; prognoza rămâne mai puțin în urmă pe trend (bias −4,0 față de −5,8 și −9,5). Valoarea pe baterie aproape
+neschimbată (85,6% / 84,7% / 84,5%).
+
 ## Teste de îmbunătățire pe tot istoricul (`scripts/improvements.py`, 671 de zile, toate anotimpurile)
 Eroarea medie și valoarea pe baterie (10 MW / 2h, % din câștigul cu prevedere perfectă), antrenare pe 60 de zile:
 
