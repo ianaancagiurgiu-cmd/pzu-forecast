@@ -6,6 +6,11 @@ on:
     - cron: "0 3,4,6 * * *"
     - cron: "30 8 * * *"      # ultima incercare (10:30-11:30 ora Romaniei, inainte de gate closure 12:00 CET)
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Regenereaza forecast-ul chiar daca exista deja pentru ziua urmatoare"
+        type: boolean
+        default: false
 concurrency: { group: pzu-db, cancel-in-progress: false }
 permissions:
   contents: write
@@ -28,7 +33,8 @@ jobs:
         id: job
         env:
           FINAL: ${{ github.event.schedule == '30 8 * * *' && '--final' || '' }}
-        run: python -m pzu.pipeline daily $FINAL
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: python -m pzu.pipeline daily $FINAL $FORCE
       - name: Actualizeaza baza de date si dashboard-ul
         if: always() && hashFiles('pzu.db') != ''
         run: |
