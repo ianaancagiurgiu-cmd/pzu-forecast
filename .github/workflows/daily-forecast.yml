@@ -1,10 +1,12 @@
 name: Daily forecast
-# Orele sunt in UTC: 03:00/04:00 UTC = 06:00 ora Romaniei (vara/iarna). Job-ul e idempotent:
-# ruleaza de mai multe ori pe dimineata (datele D+1 pot aparea mai tarziu) si sare peste daca exista deja forecast.
+# Orele sunt in UTC (06:00 ora Romaniei = 03:00 vara / 04:00 iarna). GitHub intarzie sau omite rulari programate,
+# mai ales la minutele rotunde (:00, :30), deci avem multe incercari la minute neobisnuite. Job-ul e idempotent:
+# sare peste daca forecast-ul exista deja (rulare de ~1 minut) si reincearca daca datele D+1 nu sunt inca publicate.
 on:
   schedule:
-    - cron: "0 3,4,6 * * *"
-    - cron: "30 8 * * *"      # ultima incercare (10:30-11:30 ora Romaniei, inainte de gate closure 12:00 CET)
+    - cron: "7 3,4,5,6,7,8 * * *"
+    - cron: "37 4,5,6,7,8 * * *"
+    - cron: "53 8 * * *"      # ultima incercare, inainte de gate closure (12:00 CET = 10:00 UTC vara, 11:00 UTC iarna)
   workflow_dispatch:
     inputs:
       force:
@@ -32,7 +34,7 @@ jobs:
       - name: Forecast D+1
         id: job
         env:
-          FINAL: ${{ github.event.schedule == '30 8 * * *' && '--final' || '' }}
+          FINAL: ${{ github.event.schedule == '53 8 * * *' && '--final' || '' }}
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: python -m pzu.pipeline daily $FINAL $FORCE
       - name: Actualizeaza baza de date si dashboard-ul
