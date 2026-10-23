@@ -72,6 +72,14 @@ generation_actual = Table(
     *[Column(c, Float) for c in GEN_COLS],
 )
 
+# Productia REALA solara/eoliana pe zone (ENTSO-E A75): doar pentru teste de limita superioara
+region_generation = Table(
+    "region_generation", metadata,
+    Column("timestamp", TS, primary_key=True),
+    Column("zone", String(2), primary_key=True),
+    Column("solar_mw", Float), Column("wind_mw", Float),
+)
+
 # Prognoza de consum D+1 a vecinilor (ENTSO-E A65), cunoscuta dimineata
 neighbor_load = Table(
     "neighbor_load", metadata,

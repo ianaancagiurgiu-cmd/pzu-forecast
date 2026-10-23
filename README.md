@@ -97,6 +97,13 @@ Plasă de siguranță: dacă prognoza de consum a vecinilor lipsește la momentu
 antrenat în paralel (`variant` = `main` / `fallback` în `features_used`). Variabilele regionale se folosesc la
 antrenare doar dacă au istoric suficient. Date: `scripts/backfill_region.py` (workflow `Backfill regiune`).
 
+## Limită superioară pentru producția REGIONALĂ (`scripts/region_oracle.py`, 668 de zile)
+Dacă am ști (perfect) producția solară/eoliană de mâine din RO și din 10 piețe din regiune (HU, BG, RS, SK, AT, DE, CZ,
+GR, HR, SI): MAE 24,1 → **21,7** (−10%; iarna 25,2 → 22,9; vara 20,9 → 18,9), baterie 84,4% → 86,4% (cu mix: 87,1% →
+87,8%). Doar Romania, perfect: ~−2%. Deci producția regională contează mai mult decât cea locală, dar tavanul rămâne
+~10% din eroare. O estimare din prognoze meteo ar aduce mai puțin. Date: `scripts/backfill_region_generation.py`
+(tabelul `region_generation`). Rezultate: `reports/region_oracle.json`.
+
 ## Actualizări ale prognozei pe parcursul dimineții
 Prognoza pentru ziua următoare se regenerează dacă **s-au schimbat datele cunoscute** (prognoza de consum a României,
 prognoza de consum a vecinilor, ultimul preț cunoscut), nu doar la trecerea de la varianta de rezervă la cea completă.
