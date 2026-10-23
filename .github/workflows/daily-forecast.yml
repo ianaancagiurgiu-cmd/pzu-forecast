@@ -1,12 +1,17 @@
 name: Daily forecast
 # Orele sunt in UTC (06:00 ora Romaniei = 03:00 vara / 04:00 iarna). GitHub intarzie sau omite rulari programate,
 # mai ales la minutele rotunde (:00, :30), deci avem multe incercari la minute neobisnuite. Job-ul e idempotent:
-# sare peste daca forecast-ul exista deja (rulare de ~1 minut) si reincearca daca datele D+1 nu sunt inca publicate.
+# sare peste daca forecast-ul exista deja si datele sunt neschimbate, il actualizeaza daca s-au schimbat (pana la
+# 13:00 ora Romaniei) si reincearca daca datele D+1 nu sunt inca publicate. Fiecare versiune se pastreaza in DB.
 on:
   schedule:
     - cron: "7 3,4,5,6,7,8 * * *"
     - cron: "37 4,5,6,7,8 * * *"
-    - cron: "53 8 * * *"      # ultima incercare, inainte de gate closure (12:00 CET = 10:00 UTC vara, 11:00 UTC iarna)
+    - cron: "53 8 * * *"      # ultima incercare pentru prima prognoza, inainte de gate closure
+    # Actualizari aproape de inchiderea pietei (13:00 ora Romaniei = 10:00 UTC vara, 11:00 UTC iarna). Regenereaza
+    # prognoza doar daca datele s-au schimbat si doar inainte de 13:00 ora Romaniei (altfel ies imediat).
+    - cron: "23 9 * * *"
+    - cron: "23 10 * * *"
   workflow_dispatch:
     inputs:
       force:

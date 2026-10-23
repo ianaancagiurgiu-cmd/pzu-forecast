@@ -45,6 +45,16 @@ price_forecast = Table(
     Column("features_used", JSON),
 )
 
+# Toate versiunile prognozei (price_forecast o pastreaza doar pe ultima): ca sa putem verifica daca actualizarile ajuta
+forecast_history = Table(
+    "forecast_history", metadata,
+    Column("generated_at", TS, primary_key=True),
+    Column("timestamp", TS, primary_key=True),
+    Column("predicted_price", Float), Column("ci_lower", Float), Column("ci_upper", Float),
+    Column("mean7d_price", Float), Column("blend_price", Float),
+    Column("model_version", String(20)), Column("variant", String(10)), Column("inputs_hash", String(20)),
+)
+
 forecast_accuracy = Table(
     "forecast_accuracy", metadata,
     Column("forecast_date", Date, primary_key=True),
@@ -236,3 +246,16 @@ def read_neighbor_load(engine: Engine) -> pd.DataFrame:
         return pd.DataFrame()
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.pivot(index="timestamp", columns="zone", values="load_forecast_mw").apply(pd.to_numeric, errors="coerce").sort_index()
+
+
+def read_forecast_history(engine: Engine, idx: pd.DatetimeIndex) -> pd.DataFrame:
+    """Toate versiunile prognozei pentru zilele din `idx` (generated_at, timestamp, ...)."""
+    with engine.connect() as conn:
+        df = pd.read_sql(select(forecast_history).where(
+            forecast_history.c.timestamp >= idx[0].to_pydatetime(),
+            forecast_history.c.timestamp <= idx[-1].to_pydatetime()), conn)
+    if df.empty:
+        return df
+    for c in ("generated_at", "timestamp"):
+        df[c] = pd.to_datetime(df[c], utc=True)
+    return df.sort_values(["generated_at", "timestamp"])

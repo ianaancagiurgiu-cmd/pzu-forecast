@@ -234,7 +234,8 @@ def test_refresh_never_trains_on_the_target_day(env, monkeypatch):
 def test_daily_falls_back_to_existing_model_if_refresh_fails(env, monkeypatch):
     eng, _ = env
     monkeypatch.setattr(pipeline, "refresh_model", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
-    assert "salvat" in pipeline.daily(eng, OfflineClient(), DAY, force=True)
+    msg = pipeline.daily(eng, OfflineClient(), DAY, force=True)
+    assert "salvat" in msg or "actualizat" in msg and "varianta" in msg
 
 
 def test_regional_features_are_dropped_when_history_is_missing(env):
@@ -247,33 +248,80 @@ def test_regional_features_are_dropped_when_history_is_missing(env):
     assert set(F.BASE_PRODUCTION_FEATURES) <= set(cols)
 
 
-# --------------------------------------------- prognoza de rezerva -> trecere la modelul complet ----
-def test_fallback_forecast_is_upgraded_when_neighbor_load_appears(env, monkeypatch):
-    eng, _ = env
-    inputs = db.read_df(eng, db.forecasts_input)
-    idx = day_index(DAY)
-    ts = inputs.index
-    rows = []
-    for z in ("HU", "BG", "RS", "SK"):
-        rows.append(pd.DataFrame({"timestamp": ts, "zone": z, "load_forecast_mw": 3000.0 + (np.arange(len(ts)) % 96)}))
-    full = pd.concat(rows)
-    before = full[full["timestamp"] < idx[0]]
-    db.upsert_df(eng, db.neighbor_load, before, ["timestamp", "zone"])      # istoric exista; ziua tinta lipseste
-    pipeline.retrain(eng, None, window_days=20, calib_days=20, version="vnb", before=idx[0])
-    assert any(c in _stored(eng).features for c in F_NB()), "modelul principal trebuie sa foloseasca consumul vecinilor"
-
-    assert "varianta fallback" in pipeline.daily(eng, OfflineClient(), DAY, force=True)
-    assert pipeline._existing_variant(eng, idx) == "fallback"
-    # inca lipsesc consumurile -> nu rescriem aceeasi prognoza de rezerva
-    assert "exista deja forecast de rezerva" in pipeline.daily(eng, OfflineClient(), DAY)
-    assert pipeline._existing_variant(eng, idx) == "fallback"
-    # apar consumurile vecinilor -> se trece la modelul complet
-    db.upsert_df(eng, db.neighbor_load, full[full["timestamp"].isin(idx)], ["timestamp", "zone"])
-    assert "varianta main" in pipeline.daily(eng, OfflineClient(), DAY)
-    assert pipeline._existing_variant(eng, idx) == "main"
-    assert "exista deja forecast pentru" in pipeline.daily(eng, OfflineClient(), DAY)   # main nu se mai rescrie
+# --------------------------------------------- actualizari: rezerva -> complet, date schimbate, istoric ----
+EARLY = pd.Timestamp("2026-03-01 09:00", tz="Europe/Bucharest")     # inainte de 13:00 din ziua dinaintea lui DAY
 
 
 def F_NB():
     from pzu import features as F
     return F.NEIGHBOR_LOADS
+
+
+def test_gate_closes_at_13_local_time_the_day_before():
+    assert not pipeline.gate_closed(DAY, pd.Timestamp("2026-03-01 12:59", tz="Europe/Bucharest"))
+    assert pipeline.gate_closed(DAY, pd.Timestamp("2026-03-01 13:00", tz="Europe/Bucharest"))
+    assert pipeline.gate_closed(DAY, pd.Timestamp("2026-03-02 08:00", tz="Europe/Bucharest"))
+
+
+def test_fingerprint_changes_only_when_the_known_data_change(env):
+    eng, _ = env
+    inputs, prices = db.read_df(eng, db.forecasts_input), db.read_prices(eng)
+    prices = prices[prices.index < day_index(DAY)[0]]
+    base = pipeline.inputs_fingerprint(inputs, None, prices, DAY)
+    assert base == pipeline.inputs_fingerprint(inputs.copy(), None, prices, DAY)
+    revised = inputs.copy()
+    revised.loc[day_index(DAY)[5], "load_forecast_mw"] += 50
+    assert pipeline.inputs_fingerprint(revised, None, prices, DAY) != base
+    nl = pd.DataFrame({z: 3000.0 for z in ("HU", "BG", "RS", "SK")}, index=inputs.index)
+    assert pipeline.inputs_fingerprint(inputs, nl, prices, DAY) != base
+
+
+def test_fallback_forecast_is_upgraded_when_neighbor_load_appears(env):
+    eng, _ = env
+    inputs = db.read_df(eng, db.forecasts_input)
+    idx = day_index(DAY)
+    ts = inputs.index
+    full = pd.concat([pd.DataFrame({"timestamp": ts, "zone": z, "load_forecast_mw": 3000.0 + (np.arange(len(ts)) % 96)})
+                      for z in ("HU", "BG", "RS", "SK")])
+    db.upsert_df(eng, db.neighbor_load, full[full["timestamp"] < idx[0]], ["timestamp", "zone"])   # istoric; ziua tinta lipseste
+    pipeline.retrain(eng, None, window_days=20, calib_days=20, version="vnb", before=idx[0])
+    assert any(c in _stored(eng).features for c in F_NB()), "modelul principal trebuie sa foloseasca consumul vecinilor"
+
+    assert "varianta fallback" in pipeline.daily(eng, OfflineClient(), DAY, force=True, now=EARLY)
+    assert pipeline._existing_variant(eng, idx) == "fallback"
+    assert "datele sunt neschimbate" in pipeline.daily(eng, OfflineClient(), DAY, now=EARLY)     # nimic nou -> nu rescrie
+    db.upsert_df(eng, db.neighbor_load, full[full["timestamp"].isin(idx)], ["timestamp", "zone"])  # apar consumurile vecinilor
+    msg = pipeline.daily(eng, OfflineClient(), DAY, now=EARLY + pd.Timedelta(hours=1))
+    assert "actualizat" in msg and "varianta main" in msg
+    assert pipeline._existing_variant(eng, idx) == "main"
+    assert "datele sunt neschimbate" in pipeline.daily(eng, OfflineClient(), DAY, now=EARLY + pd.Timedelta(hours=2))
+
+
+def test_revised_load_forecast_creates_a_new_version_until_the_gate_closes(env):
+    eng, _ = env
+    idx = day_index(DAY)
+    n0 = db.read_forecast_history(eng, idx)["generated_at"].nunique()
+    inputs = db.read_df(eng, db.forecasts_input)
+    inputs.loc[idx, "load_forecast_mw"] = inputs.loc[idx, "load_forecast_mw"] + 120        # revizuire a prognozei de consum
+    db.upsert_df(eng, db.forecasts_input, inputs.loc[idx], ["timestamp"])
+    assert "actualizat" in pipeline.daily(eng, OfflineClient(), DAY, now=EARLY + pd.Timedelta(hours=3))
+    assert db.read_forecast_history(eng, idx)["generated_at"].nunique() == n0 + 1
+    inputs.loc[idx, "load_forecast_mw"] = inputs.loc[idx, "load_forecast_mw"] + 120
+    db.upsert_df(eng, db.forecasts_input, inputs.loc[idx], ["timestamp"])
+    late = pd.Timestamp("2026-03-01 13:30", tz="Europe/Bucharest")                          # piata s-a inchis
+    assert "piata e inchisa" in pipeline.daily(eng, OfflineClient(), DAY, now=late)
+    assert db.read_forecast_history(eng, idx)["generated_at"].nunique() == n0 + 1           # nicio versiune noua
+
+
+def test_api_exposes_versions_variant_and_errors(env):
+    eng, ro = env
+    idx = day_index(DAY)
+    long = ro.reindex(idx).dropna().rename("price_eur_mwh").rename_axis("timestamp").reset_index()   # pretul oficial (sters de un test anterior)
+    long["zone"], long["source"] = "RO", "ENTSOE"
+    db.upsert_df(eng, db.prices_actual, long, ["timestamp", "zone"])
+    client = TestClient(create_app(eng))
+    body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
+    assert body["variant"] in ("main", "fallback") and body["updates"] >= 2
+    v = client.get("/api/v1/forecast/pzu/versions", params={"date": "2026-03-02"}).json()["versions"]
+    assert len(v) == body["updates"] and v == sorted(v, key=lambda x: x["generated_at"])
+    assert all(x["mae"] is not None for x in v)            # exista pretul oficial in DB-ul de test

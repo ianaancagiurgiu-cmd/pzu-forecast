@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -53,7 +54,13 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         fc = load_day(date)
         step = pd.Timedelta(minutes=15)
         actual = db.read_actual_ro(engine, day_index(date))   # NaN pana la publicarea pretului oficial
+        meta = fc["features_used"].iloc[0] if "features_used" in fc else None
+        if isinstance(meta, str):
+            meta = json.loads(meta)
+        hist = db.read_forecast_history(engine, day_index(date))
         return {
+            "variant": (meta or {}).get("variant"),
+            "updates": int(hist["generated_at"].nunique()) if not hist.empty else 1,
             "date": date.isoformat(),
             "generated_at": _iso(pd.to_datetime(fc["forecast_generated_at"], utc=True).max()),
             "model_version": fc["model_version"].iloc[0],
@@ -66,6 +73,25 @@ def create_app(engine: Engine | None = None) -> FastAPI:
                 for ts, r in fc.iterrows()
             ],
         }
+
+    @app.get("/api/v1/forecast/pzu/versions")
+    def versions(date: date):
+        """Toate versiunile prognozei pentru zi (ora, varianta) si, daca exista pretul oficial, eroarea fiecareia."""
+        idx = day_index(date)
+        h = db.read_forecast_history(engine, idx)
+        actual = db.read_actual_ro(engine, idx)
+        out = []
+        for gen, g in h.groupby("generated_at"):
+            g = g.set_index("timestamp")
+            row = {"generated_at": _iso(gen), "variant": g["variant"].iloc[0], "model_version": g["model_version"].iloc[0],
+                   "mean_price": _round(g["predicted_price"].mean()), "mae": None, "mae_mix": None}
+            a = actual.reindex(g.index)
+            if len(g) == len(idx) and a.notna().all():
+                row["mae"] = _round((g["predicted_price"] - a).abs().mean())
+                if g["blend_price"].notna().all():
+                    row["mae_mix"] = _round((g["blend_price"] - a).abs().mean())
+            out.append(row)
+        return {"date": date.isoformat(), "versions": out}
 
     @app.get("/api/v1/forecast/pzu/summary")
     def summary(date: date):

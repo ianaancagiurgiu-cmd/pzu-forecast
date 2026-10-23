@@ -18,7 +18,7 @@ def _local_dates(idx: pd.DatetimeIndex) -> pd.Series:
 
 def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: int = 90,
                  target: str = "level", refit_every: int = 1, end_offset_days: int = 0,
-                 cols: list[str] | None = None,
+                 cols: list[str] | None = None, half_life_days: float | None = None,
                  **model_overrides) -> pd.DataFrame:
     """Rezultat: un rand pe interval (y, pred, date, + baseline-uri). Se testeaza ultimele
     `n_days` zile; fiecare zi e prezisa cu un model antrenat doar pe zilele anterioare."""
@@ -36,13 +36,17 @@ def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: i
         te = (dates == day).to_numpy()
         if te.sum() == 0:
             continue
+        w = None
+        if half_life_days:   # zilele recente conteaza mai mult: pondere 0.5 ** (varsta / half_life)
+            ages = np.array([(day - d).days for d in dates[tr]])
+            w = 0.5 ** (ages / half_life_days)
         if m is None or k - last_fit >= refit_every:
             if target == "residual":   # invata corectia fata de media pe 7 zile
                 base_tr = X.loc[tr, "price_rolling_mean_7d"]
                 ok = base_tr.notna().to_numpy()
-                m = M.fit(X[tr][ok], (y[tr] - base_tr)[ok], cols, **model_overrides)
+                m = M.fit(X[tr][ok], (y[tr] - base_tr)[ok], cols, sample_weight=None if w is None else w[ok], **model_overrides)
             else:
-                m = M.fit(X[tr], y[tr], cols, **model_overrides)
+                m = M.fit(X[tr], y[tr], cols, sample_weight=w, **model_overrides)
             last_fit = k
         pred = m.predict(X.loc[te, cols or F.PRODUCTION_FEATURES])
         if target == "residual":

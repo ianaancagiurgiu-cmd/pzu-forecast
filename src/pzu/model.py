@@ -29,8 +29,9 @@ def make_model(**overrides) -> lgb.LGBMRegressor:
     return lgb.LGBMRegressor(**{**PARAMS, **overrides})
 
 
-def fit(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, **overrides) -> lgb.LGBMRegressor:
-    return make_model(**overrides).fit(X[cols or F.PRODUCTION_FEATURES], y)
+def fit(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, sample_weight=None,
+        **overrides) -> lgb.LGBMRegressor:
+    return make_model(**overrides).fit(X[cols or F.PRODUCTION_FEATURES], y, sample_weight=sample_weight)
 
 
 @dataclass

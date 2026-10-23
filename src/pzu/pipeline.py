@@ -10,11 +10,13 @@ Toate sunt idempotente: pot rula de mai multe ori pe zi (reincercari) fara efect
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
 from datetime import date, timedelta
 
+import numpy as np
 import pandas as pd
 
 from pzu import backtest, db, features as F, metrics, model as M
@@ -138,25 +140,48 @@ def neighbor_load_ready(nload: pd.DataFrame, day) -> bool:
     return bool(nload.reindex(day_index(day))[list(NEIGHBORS)].notna().all().all())
 
 
-def _existing_variant(engine, idx) -> str | None:
+def gate_closed(day, now: pd.Timestamp | None = None) -> bool:
+    """Piata PZU se inchide la 12:00 CET = 13:00 ora Romaniei, in ziua dinaintea zilei prognozate."""
+    now = (now or pd.Timestamp.now(tz=TZ)).tz_convert(TZ)
+    closing = pd.Timestamp(pd.Timestamp(day).date() - timedelta(days=1), tz=TZ) + pd.Timedelta(hours=13)
+    return now >= closing
+
+
+def inputs_fingerprint(inputs: pd.DataFrame, nload: pd.DataFrame | None, prices: pd.DataFrame, day) -> str:
+    """Amprenta datelor cunoscute pentru ziua prognozata: daca se schimba, merita o prognoza noua."""
+    idx = day_index(day)
+    parts = [np.nan_to_num(inputs["load_forecast_mw"].reindex(idx).to_numpy(dtype=float), nan=-9999.0)]
+    for z in NEIGHBORS:
+        col = nload[z].reindex(idx).to_numpy(dtype=float) if nload is not None and z in nload else np.full(len(idx), np.nan)
+        parts.append(np.nan_to_num(col, nan=-9999.0))
+    last = prices.index.max()
+    parts.append(np.array([last.value if pd.notna(last) else 0], dtype=float))
+    return hashlib.sha1(np.round(np.concatenate(parts), 1).tobytes()).hexdigest()[:16]
+
+
+def _stored_meta(engine, idx) -> dict:
     fc = db.read_forecast(engine, idx)
     if fc.empty or "features_used" not in fc:
-        return None
+        return {}
     v = fc["features_used"].iloc[0]
     if isinstance(v, str):
         v = json.loads(v)
-    return (v or {}).get("variant")
+    return v or {}
+
+
+def _existing_variant(engine, idx) -> str | None:
+    return _stored_meta(engine, idx).get("variant")
 
 
 def daily(engine, client, day: date | None = None, force: bool = False,
           now: pd.Timestamp | None = None) -> str:
+    """Genereaza prognoza pentru `day`; o regenereaza daca datele s-au schimbat si piata nu s-a inchis.
+    Fiecare versiune se pastreaza in `forecast_history`."""
     day = day or target_day(now)
     idx = day_index(day)
-    upgrade_only = False
-    if not force and db.count_forecast_rows(engine, idx[0], idx[-1]) == len(idx):
-        if _existing_variant(engine, idx) != "fallback":
-            return f"exista deja forecast pentru {day}"
-        upgrade_only = True   # exista doar prognoza de rezerva: o inlocuim cand apare consumul vecinilor
+    existing = db.count_forecast_rows(engine, idx[0], idx[-1]) == len(idx)
+    if existing and not force and gate_closed(day, now):
+        return f"exista deja forecast pentru {day}; piata e inchisa, nu mai actualizez"
     db.ensure_real_data(engine)
     stored = db.load_model_bytes(engine)
     if stored is None:
@@ -165,28 +190,38 @@ def daily(engine, client, day: date | None = None, force: bool = False,
 
     ingest_recent(engine, client, day)
     inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
-    check_inputs_ready(inputs, day)
+    nload = db.read_neighbor_load(engine)
+    try:
+        check_inputs_ready(inputs, day)
+    except NotReady:
+        if existing and not force:
+            return f"exista deja forecast pentru {day}; datele nu sunt complete acum"
+        raise
+    # la ora prognozei nu exista preturile din ziua tinta; le taiem explicit (si pentru re-rulari tarzii)
+    prices = prices[prices.index < idx[0]]
+    fingerprint = inputs_fingerprint(inputs, nload, prices, day)
+    if existing and not force and _stored_meta(engine, idx).get("inputs_hash") == fingerprint:
+        return f"exista deja forecast pentru {day}; datele sunt neschimbate"
+
     try:   # reantrenare zilnica; la esec se foloseste modelul existent
         bundle = refresh_model(engine, bundle, now, before=idx[0])
     except Exception as exc:
         log.warning("Reantrenarea zilnica a esuat, folosesc modelul existent: %s", exc)
-    inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
-    nload = db.read_neighbor_load(engine)
-    if upgrade_only and not neighbor_load_ready(nload, day):
-        return f"exista deja forecast de rezerva pentru {day}; consumul vecinilor nu e inca publicat"
-    # la ora prognozei nu exista preturile din ziua tinta; le taiem explicit (si pentru re-rulari tarzii)
-    prices = prices[prices.index < idx[0]]
     out = M.forecast_day(bundle, inputs, prices, day, nload=nload)
 
     generated = pd.Timestamp.now(tz="UTC").to_pydatetime()
     rows = out.reset_index(names="timestamp")
-    rows = rows.rename(columns={"predicted_price": "predicted_price"})
     rows["forecast_generated_at"] = generated
     variant = out["variant"].iloc[0]
     rows["features_used"] = [{"features": bundle.features if variant == "main" else bundle.fallback_features,
-                              "window_days": bundle.window_days, "variant": variant}] * len(rows)
+                              "window_days": bundle.window_days, "variant": variant,
+                              "inputs_hash": fingerprint}] * len(rows)
     db.upsert_df(engine, db.price_forecast, rows, ["timestamp"])
-    return f"forecast {day} salvat ({len(rows)} intervale, model {bundle.version}, varianta {variant})"
+    hist = rows.rename(columns={"forecast_generated_at": "generated_at"})
+    hist["inputs_hash"] = fingerprint
+    db.upsert_df(engine, db.forecast_history, hist, ["generated_at", "timestamp"])
+    verb = "actualizat" if existing else "salvat"
+    return f"forecast {day} {verb} ({len(rows)} intervale, model {bundle.version}, varianta {variant})"
 
 
 # ---------------------------------------------------------------- evaluate ----

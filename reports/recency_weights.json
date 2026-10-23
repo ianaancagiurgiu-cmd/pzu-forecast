@@ -1,0 +1,138 @@
+{
+  "naive_mean7d": {
+    "MAE": 28.3,
+    "MAE_iarna": 27.31,
+    "MAE_vara": 27.67,
+    "baterie_%_tot": 86.7,
+    "baterie_%_iarna": 71.01,
+    "baterie_%_vara": 90.51
+  },
+  "fereastra 60z, uniform": {
+    "MAE": 24.09,
+    "MAE_iarna": 25.21,
+    "MAE_vara": 20.89,
+    "baterie_%_tot": 84.35,
+    "baterie_%_iarna": 70.25,
+    "baterie_%_vara": 88.38
+  },
+  "fereastra 60z, half-life 20": {
+    "MAE": 24.07,
+    "MAE_iarna": 25.12,
+    "MAE_vara": 20.88,
+    "baterie_%_tot": 84.6,
+    "baterie_%_iarna": 70.08,
+    "baterie_%_vara": 88.35
+  },
+  "fereastra 60z, half-life 30": {
+    "MAE": 23.96,
+    "MAE_iarna": 24.94,
+    "MAE_vara": 20.86,
+    "baterie_%_tot": 84.77,
+    "baterie_%_iarna": 69.77,
+    "baterie_%_vara": 88.49
+  },
+  "fereastra 60z, half-life 45": {
+    "MAE": 24.07,
+    "MAE_iarna": 25.18,
+    "MAE_vara": 20.87,
+    "baterie_%_tot": 84.34,
+    "baterie_%_iarna": 69.58,
+    "baterie_%_vara": 88.41
+  },
+  "fereastra 120z, half-life 30": {
+    "MAE": 23.65,
+    "MAE_iarna": 25.47,
+    "MAE_vara": 20.36,
+    "baterie_%_tot": 84.73,
+    "baterie_%_iarna": 69.93,
+    "baterie_%_vara": 88.56
+  },
+  "fereastra 120z, half-life 60": {
+    "MAE": 23.64,
+    "MAE_iarna": 25.33,
+    "MAE_vara": 20.38,
+    "baterie_%_tot": 84.48,
+    "baterie_%_iarna": 70.03,
+    "baterie_%_vara": 88.4
+  },
+  "fereastra 180z, half-life 30": {
+    "MAE": 23.47,
+    "MAE_iarna": 25.27,
+    "MAE_vara": 20.18,
+    "baterie_%_tot": 84.35,
+    "baterie_%_iarna": 70.29,
+    "baterie_%_vara": 88.36
+  },
+  "fereastra 180z, half-life 60": {
+    "MAE": 23.45,
+    "MAE_iarna": 25.37,
+    "MAE_vara": 20.3,
+    "baterie_%_tot": 84.79,
+    "baterie_%_iarna": 69.45,
+    "baterie_%_vara": 89.16
+  },
+  "fereastra 60z, uniform + mix": {
+    "MAE": 24.23,
+    "MAE_iarna": 23.73,
+    "MAE_vara": 22.27,
+    "baterie_%_tot": 86.95,
+    "baterie_%_iarna": 72.59,
+    "baterie_%_vara": 90.53
+  },
+  "fereastra 60z, half-life 20 + mix": {
+    "MAE": 24.23,
+    "MAE_iarna": 23.71,
+    "MAE_vara": 22.16,
+    "baterie_%_tot": 87.11,
+    "baterie_%_iarna": 72.99,
+    "baterie_%_vara": 90.45
+  },
+  "fereastra 60z, half-life 30 + mix": {
+    "MAE": 24.18,
+    "MAE_iarna": 23.57,
+    "MAE_vara": 22.22,
+    "baterie_%_tot": 87.12,
+    "baterie_%_iarna": 73.04,
+    "baterie_%_vara": 90.46
+  },
+  "fereastra 60z, half-life 45 + mix": {
+    "MAE": 24.23,
+    "MAE_iarna": 23.71,
+    "MAE_vara": 22.23,
+    "baterie_%_tot": 87.07,
+    "baterie_%_iarna": 72.68,
+    "baterie_%_vara": 90.74
+  },
+  "fereastra 120z, half-life 30 + mix": {
+    "MAE": 24.09,
+    "MAE_iarna": 23.94,
+    "MAE_vara": 22.06,
+    "baterie_%_tot": 87.04,
+    "baterie_%_iarna": 73.16,
+    "baterie_%_vara": 90.24
+  },
+  "fereastra 120z, half-life 60 + mix": {
+    "MAE": 24.09,
+    "MAE_iarna": 23.93,
+    "MAE_vara": 22.07,
+    "baterie_%_tot": 86.81,
+    "baterie_%_iarna": 72.67,
+    "baterie_%_vara": 90.25
+  },
+  "fereastra 180z, half-life 30 + mix": {
+    "MAE": 24.02,
+    "MAE_iarna": 23.87,
+    "MAE_vara": 22.07,
+    "baterie_%_tot": 87.01,
+    "baterie_%_iarna": 73.45,
+    "baterie_%_vara": 90.08
+  },
+  "fereastra 180z, half-life 60 + mix": {
+    "MAE": 24.02,
+    "MAE_iarna": 23.96,
+    "MAE_vara": 22.08,
+    "baterie_%_tot": 86.93,
+    "baterie_%_iarna": 72.46,
+    "baterie_%_vara": 90.14
+  }
+}

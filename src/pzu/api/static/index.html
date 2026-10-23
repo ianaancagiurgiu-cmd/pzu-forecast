@@ -38,6 +38,7 @@ th{position:sticky;top:0;background:var(--card)}td:first-child,th:first-child{te
 <div class="legend" id="legend"></div>
 <div id="chart"></div>
 <p class="sub">Modelul estimează mai bine nivelul prețului; media pe 7 zile și mixul sunt semnale simple, la fel de bune pentru a alege orele ieftine și scumpe (de exemplu la o baterie), conform simulărilor pe prețuri reale.</p>
+<div id="versions"></div>
 <h2>Intervale</h2>
 <div class="tbl"><table><thead><tr><th>Interval</th><th>Preț</th><th>Min 90%</th><th>Max 90%</th><th>Față de medie</th><th>Medie 7 zile</th><th>Mix 50/50</th><th>Preț real</th><th>Eroare</th></tr></thead><tbody id="rows"></tbody></table></div>
 <h2>Acuratețe: MAE zilnic, ultimele 30 de zile</h2>
@@ -52,6 +53,7 @@ async function j(u){
     const D=window.PZU_DATA,url=new URL(u,"http://x"),day=url.searchParams.get("date"),p=url.pathname;
     if(p.endsWith("/dates"))return {dates:D.dates};
     if(p.endsWith("/accuracy"))return D.accuracy;
+    if(p.endsWith("/versions"))return (D.versions||{})[day]||{versions:[]};
     const v=(p.endsWith("/summary")?D.summary:D.forecast)[day];if(!v)throw new Error("Nu exista forecast pentru "+day);return v;
   }
   const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()}
@@ -74,6 +76,14 @@ function chart(el,series,opts){ // series: [{y:[],lo:[],hi:[],color,bars}]
   });
   el.innerHTML=g+"</svg>";
 }
+async function renderVersions(day){
+  try{
+    const v=(await j(`/api/v1/forecast/pzu/versions?date=${day}`)).versions||[];
+    if(!v.length){$("versions").innerHTML="";return}
+    $("versions").innerHTML=`<h2>Versiuni ale prognozei</h2><div class="tbl"><table><thead><tr><th>Ora (RO)</th><th>Varianta</th><th>Model</th><th>Preț mediu</th><th>Eroare model</th><th>Eroare mix</th></tr></thead><tbody>`+
+      v.map(x=>`<tr><td>${x.generated_at.slice(11,16)}</td><td>${x.variant==="main"?"completă":"de rezervă"}</td><td>${x.model_version}</td><td>${fmt(x.mean_price)}</td><td>${x.mae==null?"–":fmt(x.mae)}</td><td>${x.mae_mix==null?"–":fmt(x.mae_mix)}</td></tr>`).join("")+`</tbody></table></div>`;
+  }catch(e){$("versions").innerHTML=""}
+}
 function errCell(x){
   if(x.actual_price==null)return "–";
   const e=x.predicted_price-x.actual_price,a=Math.abs(e),c=a<20?"e-ok":a<40?"e-mid":"e-bad";
@@ -91,7 +101,9 @@ async function load(day){
   $("err").textContent="";
   try{
     const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
-    $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`;
+    $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`+
+      (f.variant?` · varianta ${f.variant==="main"?"completă":"de rezervă (fără consumul vecinilor)"}`:"")+(f.updates>1?` · ${f.updates} versiuni`:"");
+    renderVersions(day);
     if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
     else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
     $("kpis").innerHTML=[["Preț mediu",fmt(s.mean)],["Minim",fmt(s.min)],["Maxim",fmt(s.max)],["Spread zilnic",fmt(s.spread)],

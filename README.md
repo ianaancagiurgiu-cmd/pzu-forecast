@@ -97,6 +97,29 @@ Plasă de siguranță: dacă prognoza de consum a vecinilor lipsește la momentu
 antrenat în paralel (`variant` = `main` / `fallback` în `features_used`). Variabilele regionale se folosesc la
 antrenare doar dacă au istoric suficient. Date: `scripts/backfill_region.py` (workflow `Backfill regiune`).
 
+## Actualizări ale prognozei pe parcursul dimineții
+Prognoza pentru ziua următoare se regenerează dacă **s-au schimbat datele cunoscute** (prognoza de consum a României,
+prognoza de consum a vecinilor, ultimul preț cunoscut), nu doar la trecerea de la varianta de rezervă la cea completă.
+Programul reține o amprentă a datelor folosite (`inputs_hash`) și rulează la mai multe ore (inclusiv ~12:30 ora
+României). **După 13:00 ora României (12:00 CET, închiderea pieței) nu mai actualizează**, ca să nu apară o cifră nouă
+după ofertare. Fiecare versiune se păstrează în `forecast_history`; API: `/api/v1/forecast/pzu/versions?date=`, iar
+dashboard-ul arată versiunile și, când apare prețul oficial, eroarea fiecăreia. Astfel se poate verifica pe zile reale
+dacă versiunea de la 12:30 e mai bună decât cea de la 07:00.
+
+## Ponderarea zilelor recente (`scripts/recency_weights.py`, 670 de zile, toate anotimpurile): neadoptată
+Pondere = 0,5^(vârstă/half-life). „Ieri de 3 ori mai important decât acum 50 de zile” ≈ half-life 30.
+
+| Variantă | MAE | MAE iarna | Baterie (tot) | cu mix |
+|---|---|---|---|---|
+| Fereastră 60 zile, uniform (producție) | 24,1 | 25,2 | 84,3% | 86,9% |
+| 60 zile, half-life 20 / 30 / 45 | 24,1 / 24,0 / 24,1 | 25,1 / 24,9 / 25,2 | 84,6 / 84,8 / 84,3% | 87,1% |
+| 120 zile, half-life 30 / 60 | 23,6 / 23,6 | 25,5 / 25,3 | 84,7 / 84,5% | 87,0 / 86,8% |
+| 180 zile, half-life 30 / 60 | 23,5 / 23,5 | 25,3 / 25,4 | 84,3 / 84,8% | 87,0 / 86,9% |
+
+Diferențele pe aceleași zile de test sunt în zona zgomotului (MAE ±0,1 la fereastra de 60 de zile; −2% la ferestre
+lungi, doar vara; valoarea pe baterie neschimbată), deci nu s-a schimbat nimic în producție. Reantrenarea zilnică
+acoperă deja nevoia de a învăța din ultimele zile.
+
 ## Reantrenare zilnică
 Modelul se refit-uiește o dată pe zi, la prima rulare reușită a dimineții (secunde), pe ultimele 60 de zile **anterioare
 zilei prognozate** (nu antrenează niciodată pe ziua pe care o prognozează, nici la re-rulări târzii). Calibrarea
