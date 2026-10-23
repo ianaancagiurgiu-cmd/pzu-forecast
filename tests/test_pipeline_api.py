@@ -1,6 +1,7 @@
 import io
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -244,3 +245,35 @@ def test_regional_features_are_dropped_when_history_is_missing(env):
     assert not set(F.NEIGHBOR_LOADS) & set(cols)                       # fara consum vecini in DB
     assert not any(c in cols for c in ("price_at_lag_24h", "price_de_lag_24h", "price_gr_lag_7d"))
     assert set(F.BASE_PRODUCTION_FEATURES) <= set(cols)
+
+
+# --------------------------------------------- prognoza de rezerva -> trecere la modelul complet ----
+def test_fallback_forecast_is_upgraded_when_neighbor_load_appears(env, monkeypatch):
+    eng, _ = env
+    inputs = db.read_df(eng, db.forecasts_input)
+    idx = day_index(DAY)
+    ts = inputs.index
+    rows = []
+    for z in ("HU", "BG", "RS", "SK"):
+        rows.append(pd.DataFrame({"timestamp": ts, "zone": z, "load_forecast_mw": 3000.0 + (np.arange(len(ts)) % 96)}))
+    full = pd.concat(rows)
+    before = full[full["timestamp"] < idx[0]]
+    db.upsert_df(eng, db.neighbor_load, before, ["timestamp", "zone"])      # istoric exista; ziua tinta lipseste
+    pipeline.retrain(eng, None, window_days=20, calib_days=20, version="vnb", before=idx[0])
+    assert any(c in _stored(eng).features for c in F_NB()), "modelul principal trebuie sa foloseasca consumul vecinilor"
+
+    assert "varianta fallback" in pipeline.daily(eng, OfflineClient(), DAY, force=True)
+    assert pipeline._existing_variant(eng, idx) == "fallback"
+    # inca lipsesc consumurile -> nu rescriem aceeasi prognoza de rezerva
+    assert "exista deja forecast de rezerva" in pipeline.daily(eng, OfflineClient(), DAY)
+    assert pipeline._existing_variant(eng, idx) == "fallback"
+    # apar consumurile vecinilor -> se trece la modelul complet
+    db.upsert_df(eng, db.neighbor_load, full[full["timestamp"].isin(idx)], ["timestamp", "zone"])
+    assert "varianta main" in pipeline.daily(eng, OfflineClient(), DAY)
+    assert pipeline._existing_variant(eng, idx) == "main"
+    assert "exista deja forecast pentru" in pipeline.daily(eng, OfflineClient(), DAY)   # main nu se mai rescrie
+
+
+def F_NB():
+    from pzu import features as F
+    return F.NEIGHBOR_LOADS

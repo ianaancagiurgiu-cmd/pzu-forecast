@@ -10,6 +10,7 @@ Toate sunt idempotente: pot rula de mai multe ori pe zi (reincercari) fara efect
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from datetime import date, timedelta
@@ -130,12 +131,32 @@ def check_inputs_ready(inputs: pd.DataFrame, day) -> None:
         raise NotReady(f"Lipsesc date pentru {pd.Timestamp(day).date()}: {missing}")
 
 
+def neighbor_load_ready(nload: pd.DataFrame, day) -> bool:
+    """Prognoza de consum D+1 a tuturor vecinilor exista pentru toate intervalele zilei."""
+    if nload is None or nload.empty or any(z not in nload for z in NEIGHBORS):
+        return False
+    return bool(nload.reindex(day_index(day))[list(NEIGHBORS)].notna().all().all())
+
+
+def _existing_variant(engine, idx) -> str | None:
+    fc = db.read_forecast(engine, idx)
+    if fc.empty or "features_used" not in fc:
+        return None
+    v = fc["features_used"].iloc[0]
+    if isinstance(v, str):
+        v = json.loads(v)
+    return (v or {}).get("variant")
+
+
 def daily(engine, client, day: date | None = None, force: bool = False,
           now: pd.Timestamp | None = None) -> str:
     day = day or target_day(now)
     idx = day_index(day)
+    upgrade_only = False
     if not force and db.count_forecast_rows(engine, idx[0], idx[-1]) == len(idx):
-        return f"exista deja forecast pentru {day}"
+        if _existing_variant(engine, idx) != "fallback":
+            return f"exista deja forecast pentru {day}"
+        upgrade_only = True   # exista doar prognoza de rezerva: o inlocuim cand apare consumul vecinilor
     db.ensure_real_data(engine)
     stored = db.load_model_bytes(engine)
     if stored is None:
@@ -151,6 +172,8 @@ def daily(engine, client, day: date | None = None, force: bool = False,
         log.warning("Reantrenarea zilnica a esuat, folosesc modelul existent: %s", exc)
     inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
     nload = db.read_neighbor_load(engine)
+    if upgrade_only and not neighbor_load_ready(nload, day):
+        return f"exista deja forecast de rezerva pentru {day}; consumul vecinilor nu e inca publicat"
     # la ora prognozei nu exista preturile din ziua tinta; le taiem explicit (si pentru re-rulari tarzii)
     prices = prices[prices.index < idx[0]]
     out = M.forecast_day(bundle, inputs, prices, day, nload=nload)
