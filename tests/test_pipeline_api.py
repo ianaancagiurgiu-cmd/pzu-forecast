@@ -1,5 +1,5 @@
 import io
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -87,6 +87,19 @@ def test_evaluate_not_ready_when_prices_unpublished(env):
     eng, _ = env
     with pytest.raises(pipeline.NotReady):
         pipeline.evaluate(eng, OfflineClient(), DAY, force=True)
+
+
+def test_evaluate_missed_catches_up_past_days(env):
+    eng, ro = env
+    with eng.begin() as conn:                      # DB comun modulului: porneste fara evaluari
+        conn.execute(db.forecast_accuracy.delete())
+    pipeline.daily(eng, OfflineClient(), DAY)
+    now = pd.Timestamp(DAY + timedelta(days=2), tz="UTC") + pd.Timedelta(hours=12)
+    msgs = pipeline.evaluate_missed(eng, PricesClient(ro), now=now)
+    assert any("MAE" in m for m in msgs)
+    acc = db.read_df(eng, db.forecast_accuracy, index=None)
+    assert len(acc) == 1
+    assert not any("MAE" in m for m in pipeline.evaluate_missed(eng, PricesClient(ro), now=now))
 
 
 def test_target_day_is_tomorrow_local():

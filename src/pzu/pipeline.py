@@ -249,6 +249,24 @@ def evaluate(engine, client, day: date | None = None, force: bool = False,
     return f"evaluare {day}: MAE {m['mae']:.2f}, RMSE {m['rmse']:.2f}, coverage {m['coverage_90']:.2f}"
 
 
+def evaluate_missed(engine, client, now: pd.Timestamp | None = None, lookback_days: int = 7) -> list[str]:
+    """Recupereaza evaluarile ratate (ex. preturi publicate dupa ultima incercare) din ultimele zile."""
+    last = target_day(now)
+    with engine.connect() as conn:
+        from sqlalchemy import select
+        done = {r[0] for r in conn.execute(select(db.forecast_accuracy.c.forecast_date))}
+    out = []
+    for k in range(lookback_days, 0, -1):
+        day = last - timedelta(days=k)
+        if day in done:
+            continue
+        try:
+            out.append(evaluate(engine, client, day))
+        except NotReady as exc:
+            out.append(f"[sarit] {exc}")
+    return out
+
+
 # ----------------------------------------------------------------- retrain ----
 def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
             version: str | None = None, now: pd.Timestamp | None = None,
@@ -294,6 +312,9 @@ def main(argv=None) -> int:
         if a.job == "daily":
             print(daily(engine, client, a.date, a.force))
         elif a.job == "evaluate":
+            if a.date is None:
+                for msg in evaluate_missed(engine, client):
+                    print(msg)
             print(evaluate(engine, client, a.date, a.force))
         else:
             print(retrain(engine, client))
