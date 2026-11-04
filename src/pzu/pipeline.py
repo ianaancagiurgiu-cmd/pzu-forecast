@@ -44,7 +44,7 @@ def target_day(now: pd.Timestamp | None = None) -> date:
 
 # ---------------------------------------------------------------- ingestie ----
 def _long(wide: pd.DataFrame) -> pd.DataFrame:
-    long = wide.stack().rename("price_eur_mwh").reset_index()
+    long = wide.stack().dropna().rename("price_eur_mwh").reset_index()   # pandas 3 pastreaza NaN: nu scriem NULL peste preturi reale
     long.columns = ["timestamp", "zone", "price_eur_mwh"]
     long["source"] = "ENTSOE"
     return long

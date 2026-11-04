@@ -102,6 +102,13 @@ def test_evaluate_missed_catches_up_past_days(env):
     assert not any("MAE" in m for m in pipeline.evaluate_missed(eng, PricesClient(ro), now=now))
 
 
+def test_long_prices_never_contains_missing_values():
+    idx = pd.date_range("2026-06-01", periods=3, freq="15min", tz="UTC")
+    wide = pd.DataFrame({"RO": [1.0, None, 3.0], "HU": [None, None, 5.0]}, index=idx)
+    long = pipeline._long(wide)
+    assert long["price_eur_mwh"].notna().all() and len(long) == 3
+
+
 def test_target_day_is_tomorrow_local():
     now = pd.Timestamp("2026-10-20 03:30", tz="UTC")     # 06:30 ora Romaniei
     assert pipeline.target_day(now) == date(2026, 10, 21)
