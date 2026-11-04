@@ -5,11 +5,12 @@ import sys
 import pandas as pd
 import requests
 
-URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=3y&interval=1d"
+URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?period1={p1}&period2={p2}&interval=1d&events=history"
 
 
 def fetch(sym: str = "TTF=F") -> pd.Series:
-    r = requests.get(URL.format(sym=sym), headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    now = int(pd.Timestamp.now(tz="UTC").timestamp())
+    r = requests.get(URL.format(sym=sym, p1=now - 3 * 365 * 86400, p2=now + 86400), headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
     r.raise_for_status()
     res = r.json()["chart"]["result"][0]
     idx = pd.to_datetime(res["timestamp"], unit="s", utc=True).tz_convert("Europe/Bucharest").normalize().tz_localize(None)
