@@ -88,6 +88,17 @@ neighbor_load = Table(
     Column("load_forecast_mw", Float),
 )
 
+# Vreme (prognoza D+1 / prognoze arhivate) pe puncte din Europa, orar UTC; vezi pzu.weather
+weather_fc = Table(
+    "weather_fc", metadata,
+    Column("timestamp", TS, primary_key=True),
+    Column("point", String(16), primary_key=True),
+    Column("temp_c", Float),
+    Column("wind_ms", Float),
+    Column("rad_wm2", Float),
+    Column("cloud_pct", Float),
+)
+
 # Documente de indisponibilitate (ENTSO-E A77/A80): se pastreaza momentul crearii, ca sa putem
 # reconstrui ce se stia la ora prognozei (fara informatii aparute dupa).
 outages = Table(
@@ -254,6 +265,16 @@ def read_neighbor_load(engine: Engine) -> pd.DataFrame:
         return pd.DataFrame()
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
     return df.pivot(index="timestamp", columns="zone", values="load_forecast_mw").apply(pd.to_numeric, errors="coerce").sort_index()
+
+
+def read_weather(engine: Engine) -> pd.DataFrame:
+    """Vremea pe grupe (medii orare UTC), pentru pzu.weather.weather_features; gol daca nu exista date."""
+    from pzu import weather as W
+    df = read_df(engine, weather_fc, index=None)
+    if df.empty:
+        return pd.DataFrame()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return W.group_means(df)
 
 
 def read_forecast_history(engine: Engine, idx: pd.DatetimeIndex) -> pd.DataFrame:

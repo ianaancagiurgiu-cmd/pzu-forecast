@@ -77,3 +77,37 @@ def fetch_weather(start, end, *, archive: bool = False, client: httpx.Client | N
     total = sum(weights)
     avg = sum(f * (w / total) for f, w in zip(frames, weights))
     return to_15min(avg, how="interpolate")
+
+
+# ------------------------------------------------------- vreme din toata Europa ----
+EUROPE_HOURLY = "temperature_2m,wind_speed_100m,shortwave_radiation,cloud_cover"
+EUROPE_RENAME = {"temperature_2m": "temp_c", "wind_speed_100m": "wind_ms", "shortwave_radiation": "rad_wm2",
+                 "cloud_cover": "cloud_pct"}
+
+
+def fetch_europe(start, end, *, client: httpx.Client | None = None) -> pd.DataFrame:
+    """Prognoza orara (UTC) pe toate punctele din `pzu.weather.POINTS`, intr-o singura cerere.
+    start/end: date calendaristice (inclusiv). Format lung: timestamp, point, temp_c, wind_ms, rad_wm2, cloud_pct."""
+    from pzu.weather import POINTS
+    own = client is None
+    client = client or httpx.Client(timeout=60)
+    names = list(POINTS)
+    try:
+        params = {
+            "latitude": ",".join(str(POINTS[n][0]) for n in names), "longitude": ",".join(str(POINTS[n][1]) for n in names),
+            "hourly": EUROPE_HOURLY, "wind_speed_unit": "ms", "timezone": "UTC",
+            "start_date": pd.Timestamp(start).date().isoformat(), "end_date": pd.Timestamp(end).date().isoformat(),
+        }
+        payload = _get(client, FORECAST_URL, params, tries=3).json()
+    finally:
+        if own:
+            client.close()
+    payload = payload if isinstance(payload, list) else [payload]
+    frames = []
+    for name, p in zip(names, payload):
+        h = p["hourly"]
+        df = pd.DataFrame({new: h[old] for old, new in EUROPE_RENAME.items()},
+                          index=pd.to_datetime(h["time"]).tz_localize("UTC"))
+        df.insert(0, "point", name)
+        frames.append(df.rename_axis("timestamp").reset_index())
+    return pd.concat(frames, ignore_index=True)

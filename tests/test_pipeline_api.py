@@ -35,6 +35,7 @@ def env(tmp_path_factory):
     """DB cu 70 zile de date marcate ENTSOE (fixture de test, nu antrenare reala) + model mic."""
     mp = pytest.MonkeyPatch()
     mp.setattr(openmeteo, "fetch_weather", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
+    mp.setattr(openmeteo, "fetch_europe", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
     mp.setitem(M.PARAMS, "n_estimators", 40)
     path = tmp_path_factory.mktemp("db") / "p.db"
     eng = db.get_engine(f"sqlite:///{path}")

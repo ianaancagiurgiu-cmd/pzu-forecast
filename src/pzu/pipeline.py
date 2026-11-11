@@ -19,10 +19,10 @@ from datetime import date, timedelta
 import numpy as np
 import pandas as pd
 
-from pzu import backtest, db, features as F, metrics, model as M
+from pzu import backtest, db, features as F, metrics, model as M, weather as W
 from pzu.config import NEIGHBORS, REGION_ZONES, TZ, get_settings
 from pzu.conformal import ConformalInterval
-from pzu.ingest import entsoe
+from pzu.ingest import entsoe, openmeteo
 from pzu.timegrid import day_index
 
 log = logging.getLogger("pipeline")
@@ -68,6 +68,18 @@ def ingest_recent(engine, client, through_day: date, lookback_days: int = 10) ->
             long = nl["load_forecast_mw"].rename_axis("timestamp").reset_index()
             long["zone"] = z
             db.upsert_df(engine, db.neighbor_load, long, ["timestamp", "zone"])
+    try:   # productia reala solara/eoliana (RO), doar pentru analize: nu e intrare in model
+        gen = entsoe.fetch_actual_solar_wind(client, start, end)
+        if not gen.empty:
+            db.upsert_df(engine, db.generation_actual, gen.rename_axis("timestamp").reset_index().dropna(how="all", subset=list(gen.columns)),
+                         ["timestamp"])
+    except Exception as exc:
+        log.warning("Productia reala indisponibila: %s", exc)
+    try:   # vremea (prognoza) din toata Europa; fara ea modelul foloseste varianta "noweather"
+        wx = openmeteo.fetch_europe(pd.Timestamp(through_day) - pd.Timedelta(days=3), end)
+        db.upsert_df(engine, db.weather_fc, wx, ["timestamp", "point"])
+    except Exception as exc:
+        log.warning("Prognoza de vreme indisponibila: %s", exc)
     new = entsoe.fetch_inputs(client, start, end)
     if new.empty:
         return
@@ -83,7 +95,8 @@ def _main_cols(X: pd.DataFrame, keep, min_coverage: float = 0.8) -> list[str]:
     """Variabilele modelului principal: cele regionale se folosesc doar daca au istoric suficient in fereastra
     de antrenare (altfel ar invata din valori lipsa); fara ele modelul principal devine cel simplu."""
     base = set(F.BASE_PRODUCTION_FEATURES)
-    return [c for c in F.PRODUCTION_FEATURES if c in base or X.loc[keep, c].notna().mean() >= min_coverage]
+    cand = F.PRODUCTION_FEATURES + [c for c in W.FEATURE_NAMES if c in X]
+    return [c for c in cand if c in base or X.loc[keep, c].notna().mean() >= min_coverage]
 
 
 CALIBRATION_MAX_AGE_DAYS = 7   # intervalele de incredere (backtest 90 zile) se recalculeaza saptamanal
@@ -108,7 +121,7 @@ def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None
         stored = db.load_model_bytes(engine)
         return M.ModelBundle.from_bytes(stored[1])
     X, y = F.build_training_set(db.read_df(engine, db.forecasts_input), db.read_prices(engine),
-                                nload=db.read_neighbor_load(engine))
+                                nload=db.read_neighbor_load(engine), weather=db.read_weather(engine))
     if before is not None:   # nu antrenam niciodata pe ziua pe care o prognozam
         X, y = X[X.index < before], y[y.index < before]
     dates = pd.Series(X.index.tz_convert(TZ).date, index=X.index)
@@ -116,10 +129,13 @@ def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None
     final = M.fit(X[keep], y[keep], cols=bundle.features)
     fb_cols = bundle.fallback_features or list(F.BASE_PRODUCTION_FEATURES)
     fallback = M.fit(X[keep], y[keep], cols=fb_cols)
+    nowx_cols = [c for c in bundle.features if not c.startswith("wx_")]
+    nowx = M.fit(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(bundle.features) else None
     version = f"v2-{today:%Y%m%d}"
     fresh = M.ModelBundle(final, version, bundle.window_days, bundle.conformal,
                           features=bundle.features, calibrated_at=bundle.calibrated_at,
-                          fallback_model=fallback, fallback_features=fb_cols)
+                          fallback_model=fallback, fallback_features=fb_cols,
+                          nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None)
     db.save_model_bytes(engine, version, fresh.to_bytes())
     return fresh
 
@@ -147,13 +163,16 @@ def gate_closed(day, now: pd.Timestamp | None = None) -> bool:
     return now >= closing
 
 
-def inputs_fingerprint(inputs: pd.DataFrame, nload: pd.DataFrame | None, prices: pd.DataFrame, day) -> str:
+def inputs_fingerprint(inputs: pd.DataFrame, nload: pd.DataFrame | None, prices: pd.DataFrame, day,
+                       weather: pd.DataFrame | None = None) -> str:
     """Amprenta datelor cunoscute pentru ziua prognozata: daca se schimba, merita o prognoza noua."""
     idx = day_index(day)
     parts = [np.nan_to_num(inputs["load_forecast_mw"].reindex(idx).to_numpy(dtype=float), nan=-9999.0)]
     for z in NEIGHBORS:
         col = nload[z].reindex(idx).to_numpy(dtype=float) if nload is not None and z in nload else np.full(len(idx), np.nan)
         parts.append(np.nan_to_num(col, nan=-9999.0))
+    if weather is not None and not weather.empty:   # prognoza de vreme a zilei (mediile pe grupe)
+        parts.append(np.nan_to_num(W.weather_features(weather, idx)[W.FEATURE_NAMES[8:16]].iloc[0].to_numpy(dtype=float), nan=-9999.0))
     last = prices.index.max()
     parts.append(np.array([last.value if pd.notna(last) else 0], dtype=float))
     return hashlib.sha1(np.round(np.concatenate(parts), 1).tobytes()).hexdigest()[:16]
@@ -191,6 +210,7 @@ def daily(engine, client, day: date | None = None, force: bool = False,
     ingest_recent(engine, client, day)
     inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
     nload = db.read_neighbor_load(engine)
+    wx = db.read_weather(engine)
     try:
         check_inputs_ready(inputs, day)
     except NotReady:
@@ -199,7 +219,7 @@ def daily(engine, client, day: date | None = None, force: bool = False,
         raise
     # la ora prognozei nu exista preturile din ziua tinta; le taiem explicit (si pentru re-rulari tarzii)
     prices = prices[prices.index < idx[0]]
-    fingerprint = inputs_fingerprint(inputs, nload, prices, day)
+    fingerprint = inputs_fingerprint(inputs, nload, prices, day, wx)
     if existing and not force and _stored_meta(engine, idx).get("inputs_hash") == fingerprint:
         return f"exista deja forecast pentru {day}; datele sunt neschimbate"
 
@@ -207,7 +227,7 @@ def daily(engine, client, day: date | None = None, force: bool = False,
         bundle = refresh_model(engine, bundle, now, before=idx[0])
     except Exception as exc:
         log.warning("Reantrenarea zilnica a esuat, folosesc modelul existent: %s", exc)
-    out = M.forecast_day(bundle, inputs, prices, day, nload=nload)
+    out = M.forecast_day(bundle, inputs, prices, day, nload=nload, weather=wx)
 
     generated = pd.Timestamp.now(tz="UTC").to_pydatetime()
     rows = out.reset_index(names="timestamp")
@@ -276,7 +296,7 @@ def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
     if client is not None:
         ingest_recent(engine, client, local_today(now), lookback_days=14)
     X, y = F.build_training_set(db.read_df(engine, db.forecasts_input), db.read_prices(engine),
-                                nload=db.read_neighbor_load(engine))
+                                nload=db.read_neighbor_load(engine), weather=db.read_weather(engine))
     if before is not None:
         X, y = X[X.index < before], y[y.index < before]
     if len(X) == 0:
@@ -288,9 +308,12 @@ def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
     main_cols = _main_cols(X, keep)
     final = M.fit(X[keep], y[keep], cols=main_cols)
     fallback = M.fit(X[keep], y[keep], cols=F.BASE_PRODUCTION_FEATURES)
+    nowx_cols = [c for c in main_cols if not c.startswith("wx_")]
+    nowx = M.fit(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(main_cols) else None
     version = version or f"v2-{local_today(now):%Y%m%d}"
     bundle = M.ModelBundle(final, version, window_days, conf, calibrated_at=pd.Timestamp.now(tz="UTC").isoformat(),
-                           features=main_cols, fallback_model=fallback, fallback_features=list(F.BASE_PRODUCTION_FEATURES))
+                           features=main_cols, fallback_model=fallback, fallback_features=list(F.BASE_PRODUCTION_FEATURES),
+                           nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None)
     db.save_model_bytes(engine, version, bundle.to_bytes())
     m = backtest.evaluate(bt)["lightgbm"]
     return f"model {version} salvat (backtest {calib_days}z: MAE {m['mae']:.2f}, coverage {m.get('coverage_90', float('nan')):.2f})"

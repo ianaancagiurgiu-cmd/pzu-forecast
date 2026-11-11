@@ -236,13 +236,17 @@ def verify_no_leakage(inputs: pd.DataFrame, prices: pd.DataFrame, target_day, **
 
 def build_training_set(inputs: pd.DataFrame, prices: pd.DataFrame, dropna_target: bool = True,
                        gen: pd.DataFrame | None = None, outages: pd.DataFrame | None = None,
-                       nload: pd.DataFrame | None = None):
-    """(X, y) pe toate intervalele unde exista pret RO si forecast-uri de intrare."""
+                       nload: pd.DataFrame | None = None, weather: pd.DataFrame | None = None):
+    """(X, y) pe toate intervalele unde exista pret RO si forecast-uri de intrare.
+    `weather`: medii orare pe grupe (db.read_weather); daca lipseste, variabilele de vreme raman NaN."""
     idx = inputs.index
     if "RO" not in prices:
         raise ValueError("Lipsesc preturile RO")
     y = prices["RO"].reindex(idx)
     X = build_features(inputs, prices, idx, gen=gen, outages=outages, nload=nload)
+    if weather is not None:
+        from pzu.weather import weather_features
+        X = X.join(weather_features(weather, idx))
     mask = y.notna() & X["load_forecast_mw"].notna() & X["price_lag_24h"].notna()
     if not dropna_target:
         return X, y

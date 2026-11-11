@@ -81,7 +81,7 @@ async function renderVersions(day){
     const v=(await j(`/api/v1/forecast/pzu/versions?date=${day}`)).versions||[];
     if(!v.length){$("versions").innerHTML="";return}
     $("versions").innerHTML=`<h2>Versiuni ale prognozei</h2><div class="tbl"><table><thead><tr><th>Ora (RO)</th><th>Varianta</th><th>Model</th><th>Preț mediu</th><th>Eroare model</th><th>Eroare mix</th></tr></thead><tbody>`+
-      v.map(x=>`<tr><td>${x.generated_at.slice(11,16)}</td><td>${x.variant==="main"?"completă":"de rezervă"}</td><td>${x.model_version}</td><td>${fmt(x.mean_price)}</td><td>${x.mae==null?"–":fmt(x.mae)}</td><td>${x.mae_mix==null?"–":fmt(x.mae_mix)}</td></tr>`).join("")+`</tbody></table></div>`;
+      v.map(x=>`<tr><td>${x.generated_at.slice(11,16)}</td><td>${x.variant==="main"?"completă":x.variant==="noweather"?"fără vreme":"de rezervă"}</td><td>${x.model_version}</td><td>${fmt(x.mean_price)}</td><td>${x.mae==null?"–":fmt(x.mae)}</td><td>${x.mae_mix==null?"–":fmt(x.mae_mix)}</td></tr>`).join("")+`</tbody></table></div>`;
   }catch(e){$("versions").innerHTML=""}
 }
 function errCell(x){
@@ -102,7 +102,7 @@ async function load(day){
   try{
     const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
     $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`+
-      (f.variant?` · varianta ${f.variant==="main"?"completă":"de rezervă (fără consumul vecinilor)"}`:"")+(f.updates>1?` · ${f.updates} versiuni`:"");
+      (f.variant?` · varianta ${f.variant==="main"?"completă":f.variant==="noweather"?"fără prognoza de vreme":"de rezervă (fără consumul vecinilor)"}`:"")+(f.updates>1?` · ${f.updates} versiuni`:"");
     renderVersions(day);
     if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
     else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}

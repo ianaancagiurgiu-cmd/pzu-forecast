@@ -45,6 +45,8 @@ class ModelBundle:
     fallback_model: lgb.LGBMRegressor | None = None      # model simplu, folosit daca lipsesc consumurile vecinilor
     fallback_features: list[str] | None = None
     features: list[str] = field(default_factory=lambda: list(F.PRODUCTION_FEATURES))
+    nowx_model: lgb.LGBMRegressor | None = None          # fara vreme: folosit daca prognoza de vreme lipseste
+    nowx_features: list[str] | None = None
 
     def save(self, directory: str | Path = "models") -> Path:
         path = Path(directory)
@@ -69,23 +71,34 @@ class ModelBundle:
         return joblib.load(path)
 
 
+def pick_variant(bundle, X: pd.DataFrame, target_day=None):
+    """Cel mai complet model pentru care exista toate intrarile: principal (cu vreme) -> fara vreme -> de rezerva."""
+    needs_nb = [c for c in bundle.features if c in F.NEIGHBOR_LOADS]
+    nb_ok = not X[needs_nb].isna().any().any() if needs_nb else True
+    needs_wx = [c for c in bundle.features if c.startswith("wx_")]
+    wx_ok = all(c in X for c in needs_wx) and not (X[needs_wx].isna().any().any() if needs_wx else False)
+    if nb_ok and wx_ok:
+        return bundle.model, bundle.features, "main"
+    if nb_ok and getattr(bundle, "nowx_model", None) is not None:   # lipseste prognoza de vreme
+        return bundle.nowx_model, bundle.nowx_features, "noweather"
+    if getattr(bundle, "fallback_model", None) is not None:   # lipsesc consumurile vecinilor: model fara ele
+        return bundle.fallback_model, bundle.fallback_features, "fallback"
+    raise ValueError(f"Lipsesc prognozele de consum ale vecinilor pentru {pd.Timestamp(target_day).date() if target_day is not None else '?'}")
+
+
 def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame, target_day,
-                 nload: pd.DataFrame | None = None) -> pd.DataFrame:
+                 nload: pd.DataFrame | None = None, weather: pd.DataFrame | None = None) -> pd.DataFrame:
     """Forecast pentru ziua `target_day` (D+1). `prices` poate contine doar date pana la D;
     verificam ca feature-urile nu depind de nimic de la target_day incolo."""
     F.verify_no_leakage(inputs, prices, target_day, nload=nload)
     idx = day_index(target_day)
     X = F.build_features(inputs, prices, idx, nload=nload)
+    if weather is not None:
+        from pzu.weather import weather_features
+        X = X.join(weather_features(weather, idx))
     if X["load_forecast_mw"].isna().any():
         raise ValueError(f"Lipseste prognoza de consum pentru {pd.Timestamp(target_day).date()}")
-    needs_nb = [c for c in F.NEIGHBOR_LOADS if c in bundle.features]
-    use_main = not X[needs_nb].isna().any().any() if needs_nb else True
-    if use_main:
-        model, cols, variant = bundle.model, bundle.features, "main"
-    elif getattr(bundle, "fallback_model", None) is not None:   # lipsesc consumurile vecinilor: model fara ele
-        model, cols, variant = bundle.fallback_model, bundle.fallback_features, "fallback"
-    else:
-        raise ValueError(f"Lipsesc prognozele de consum ale vecinilor pentru {pd.Timestamp(target_day).date()}")
+    model, cols, variant = pick_variant(bundle, X, target_day)
     pred = pd.Series(model.predict(X[cols]), index=idx)
     lo, hi = bundle.conformal.interval(pred)
     mean7d = pd.Series(X["price_rolling_mean_7d"].to_numpy(), index=idx)
