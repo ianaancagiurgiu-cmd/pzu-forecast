@@ -1,0 +1,18 @@
+name: Fetch weather history
+# Istoric de vreme (prognoze arhivate + vreme reala) pentru testul vreme -> pret; atasat release-ului data-latest.
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pandas httpx
+      - run: python scripts/fetch_weather_history.py --months 25
+      - run: gh release upload data-latest weather_hist.csv --clobber
