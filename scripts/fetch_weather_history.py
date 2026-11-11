@@ -46,8 +46,8 @@ def get(client, url, params, tries=8):
 
 def fetch(client, url, lat, lon, start, end, prefix):
     parts = []
-    for s in pd.date_range(start, end, freq="120D"):
-        e = min(s + pd.Timedelta(days=119), end)
+    for s in pd.date_range(start, end, freq="60D"):
+        e = min(s + pd.Timedelta(days=59), end)
         j = get(client, url, {"latitude": lat, "longitude": lon, "hourly": VARS, "start_date": s.date().isoformat(),
                               "end_date": e.date().isoformat(), "timezone": "UTC", "wind_speed_unit": "ms"})
         h = j["hourly"]

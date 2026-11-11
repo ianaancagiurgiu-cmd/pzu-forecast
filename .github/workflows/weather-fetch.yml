@@ -10,7 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ro, centru, vest]
+        group: [centru, vest]
+      max-parallel: 2
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
