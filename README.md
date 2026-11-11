@@ -58,9 +58,9 @@ semnale simple care, în simulările pe baterie, au avut valoare comparabilă cu
 Prognozele ENTSO-E de producție solară și eoliană pentru D+1 **nu sunt publicate nici după gate closure** (verificat
 live pe 21 oct 2026, ora 13:03 a României), deci nu pot fi intrări pentru o prognoză de dimineață. Prima versiune le
 folosea și rezultatele ei erau puțin optimiste. Modelul de producție folosește acum doar ce există sigur la 06:00:
-prognoza de consum D+1, calendarul și prețurile din zilele trecute (RO și vecini, lag-uri). Vremea și capacitățile de
-interconexiune nu au îmbunătățit rezultatele și au fost scoase (`PRODUCTION_FEATURES`), deci pipeline-ul nu mai
-depinde de Open-Meteo. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (față de 27,7 cu date indisponibile,
+prognoza de consum D+1, calendarul și prețurile din zilele trecute (RO și vecini, lag-uri). Vremea din România și capacitățile de
+interconexiune nu au îmbunătățit rezultatele și au fost scoase (`PRODUCTION_FEATURES`). Vremea din toată Europa a
+fost adăugată ulterior, vezi secțiunea „Vremea din Europa”. Pe 23 iul – 20 oct 2026: eroare medie ~29,4 EUR/MWh (față de 27,7 cu date indisponibile,
 33,9 pentru media pe 7 zile și 32,9 pentru prețul de ieri). Detalii: `reports/experiments_morning.json`.
 Atenție: regula „reduc producția când prețul prognozat e negativ” bazată pe model a pierdut bani la parcuri
 în simulare; nu o folosi.
@@ -187,3 +187,35 @@ pytest
 ```
 Datele sintetice servesc doar la dezvoltare: metricile pe ele nu spun nimic despre piața reală.
 Clientul ENTSO-E nu a fost testat pe API-ul real (lipsește tokenul), doar pe răspunsuri simulate.
+
+
+## Vremea din Europa ca indicator (`src/pzu/weather.py`, 479 de zile walk-forward): adoptată
+Verificare (Open-Meteo, 24 de luni; producția reală de la ENTSO-E): prognoza arhivată față de vremea reală are corelație
+zilnică 0,99 (vânt, radiație), 1,0 (temperatură). Producția solară din România corelează 0,87 cu radiația, cea eoliană
+0,86 cu vântul din Dobrogea. Prețul României însă **nu** urmează vremea de la noi (corelație cu vântul din Dobrogea 0,03,
+cu radiația −0,33): se formează regional. Prețul german corelează −0,44 cu vântul din nord-vestul Europei.
+Episodul 25–30 oct 2026: vântul din NV Europei 13,7 → 5,4 m/s, prețul german 13 → 314 EUR/MWh, România a urmat (în
+România bătea vântul puternic, 1,7–2 GW eolian, dar prețul a fost cel mai mare din lună).
+
+Test (variabile de vreme din prognoze arhivate, ce se știa dimineața; baza fără vreme = modelul de producție):
+
+| Variabile | MAE | Baterie | Zile mai bune |
+|---|---|---|---|
+| Fără vreme | 25,76 | 81,9% | – |
+| + vreme România (4 puncte) | 26,27 | 83,4% | – |
+| **+ vreme Europa (23 puncte, 8 grupe, 20 variabile)** | **24,96** | **83,8%** | 288/479 |
+| + aceeași vreme, dar REALĂ (limită superioară) | 25,17 | 83,6% | – |
+| set compact (3–5 variabile) | 25,5–25,6 | 82,6–83,2% | 261–264/479 |
+
+Câștig mediu 0,81 ± 0,57 EUR/MWh (95%), mai mare în a doua jumătate a perioadei (1,37) decât în prima (0,25); cu mixul
+50/50 câștigul la baterie dispare (84,66 → 84,88). Setul compact nu e semnificativ. Pe 28–29 oct 2026: 58,5 → 49,9 și
+47,1 → 33,6. Deci câștig real dar mic; îl urmărim live.
+
+Pe scurt: 23 de puncte (RO, HU, BG, RS, GR, DE ×3, PL, CZ/AT, DK, NL, NO, SE, FR, ES, IT ×2, GB, IE) → grupe (vânt NV și
+S, radiație centru și SE, temperatură UE/RO/nord, nori) → medii orare, medii zilnice, schimbare față de ziua precedentă.
+Prognoza se descarcă la fiecare rulare (`openmeteo.fetch_europe`, o singură cerere) în `weather_fc`; istoricul de antrenare
+este prognoza arhivată (`scripts/fetch_weather_history.py` + `import_weather.py`, workflow-uri `Fetch weather history` și
+`Import weather history`). Trepte de siguranță (`variant`): `main` (cu vreme) → `noweather` (dacă prognoza de vreme
+lipsește) → `fallback` (dacă lipsește consumul vecinilor). Atenție: istoricul vine din „historical forecast” (cea mai
+bună prognoză a zilei respective), prognoza live de la 06:00 poate fi puțin mai slabă. Gazul (TTF) nu a ajutat
+(`scripts/fetch_gas.py`: 27,14 → 27,60).
