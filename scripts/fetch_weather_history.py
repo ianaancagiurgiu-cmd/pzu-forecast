@@ -27,7 +27,11 @@ def get(client, url, params, tries=8):
         except httpx.TransportError:
             time.sleep(10 * (k + 1)); continue
         if r.status_code == 200:
-            return r.json()
+            try:
+                return r.json()
+            except ValueError:   # raspuns gol / HTML cu cod 200: reincercam
+                print("raspuns invalid", r.text[:80], flush=True)
+                time.sleep(15 * (k + 1)); continue
         print("HTTP", r.status_code, r.text[:120], flush=True)
         time.sleep(min(20 * 2 ** k, 600))
     raise RuntimeError(f"esec {url} {params}")
