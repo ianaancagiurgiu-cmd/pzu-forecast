@@ -262,10 +262,45 @@ def test_refresh_refits_but_keeps_calibration_when_stale(env):
     eng, _ = env
     b = _stale(_stored(eng))
     fresh = pipeline.refresh_model(eng, b)
-    assert fresh.version != b.version and fresh.version.startswith("v2-")
+    assert fresh.version != b.version and fresh.version.startswith("v3-")
     assert fresh.conformal is b.conformal and fresh.features == b.features       # calibrarea refolosita
     assert _stored(eng).version == fresh.version                                  # salvat in DB
     assert pipeline.refresh_model(eng, fresh) is fresh                            # a doua incercare: nimic
+
+
+def test_refresh_retrains_fully_when_saved_model_has_old_settings(env):
+    eng, _ = env
+    b = _stale(_stored(eng))
+    b.config = None                                                               # model salvat inainte de schimbare
+    fresh = pipeline.refresh_model(eng, b, before=day_index(DAY)[0])
+    assert fresh.config == M.CONFIG and fresh.window_days == M.WINDOW_DAYS and isinstance(fresh.model, M.PairModel)
+
+
+def test_recent_conformal_uses_real_errors_of_past_forecasts(env):
+    eng, ro = env
+    from sqlalchemy import delete
+    with eng.begin() as conn:
+        conn.execute(delete(db.price_forecast))
+    assert pipeline.recent_conformal(eng, DAY) is None                            # fara prognoze trecute
+    idx = pd.date_range(day_index(DAY)[0] - pd.Timedelta(days=10), day_index(DAY)[0], freq="15min", inclusive="left")
+    past = pd.DataFrame({"timestamp": idx, "predicted_price": ro.reindex(idx).to_numpy() + 7.0})
+    db.upsert_df(eng, db.price_forecast, past, ["timestamp"])
+    ci = pipeline.recent_conformal(eng, DAY)
+    assert ci is not None and ci.q_global == pytest.approx(7.0)                   # toate erorile sunt de 7
+    with eng.begin() as conn:
+        conn.execute(delete(db.price_forecast))
+
+
+def test_recent_conformal_ignores_the_target_day_itself(env):
+    eng, ro = env
+    from sqlalchemy import delete
+    idx = pd.date_range(day_index(DAY)[0] - pd.Timedelta(days=10), day_index(DAY)[-1], freq="15min")
+    pred = pd.Series(ro.reindex(idx).to_numpy() + 5.0, index=idx)
+    pred[pred.index >= day_index(DAY)[0]] += 500.0                                # ziua tinta: nu trebuie sa conteze
+    db.upsert_df(eng, db.price_forecast, pd.DataFrame({"timestamp": idx, "predicted_price": pred.to_numpy()}), ["timestamp"])
+    assert pipeline.recent_conformal(eng, DAY).q_global == pytest.approx(5.0)
+    with eng.begin() as conn:
+        conn.execute(delete(db.price_forecast))
 
 
 def test_refresh_recalibrates_when_calibration_is_old(env):

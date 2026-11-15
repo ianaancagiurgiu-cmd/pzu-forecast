@@ -126,3 +126,16 @@ def test_forecast_works_without_solar_wind_or_weather(data):
     Xh, yh = F.build_training_set(only_load[only_load.index < cutoff], hist)
     out = M.forecast_day(_bundle(Xh, yh), only_load, hist, "2026-03-01")
     assert len(out) == 96 and out["predicted_price"].notna().all()
+
+
+def test_pair_model_averages_level_and_change_from_yesterday(data):
+    _, _, Xh, yh = data
+    cols = [c for c in F.BASE_PRODUCTION_FEATURES]
+    pm = M.fit_pair(Xh, yh, cols=cols, **FAST)
+    assert pm.delta is not None
+    X = Xh.tail(96)
+    lvl, dlt = pm.level.predict(X[cols]), pm.delta.predict(X[cols]) + X[M.LAG_COL].to_numpy()
+    assert np.allclose(pm.predict(X), 0.5 * lvl + 0.5 * dlt)
+    gap = X.copy()
+    gap[M.LAG_COL] = np.nan                                                       # fara pretul de ieri: doar modelul de nivel
+    assert np.allclose(pm.predict(gap), pm.level.predict(gap[cols]))

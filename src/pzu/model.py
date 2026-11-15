@@ -34,6 +34,47 @@ def fit(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, sample_wei
     return make_model(**overrides).fit(X[cols or F.PRODUCTION_FEATURES], y, sample_weight=sample_weight)
 
 
+WINDOW_DAYS = 365       # fereastra de antrenare (audit nov 2026: 60 -> 365 zile, MAE 26,3 -> 24,0)
+CONFIG = "pair365-v1"   # daca se schimba, modelul salvat se reantreneaza complet la urmatoarea rulare
+LAG_COL = "price_lag_24h"
+
+
+class PairModel:
+    """Media a doua modele: unul prezice pretul, celalalt schimbarea fata de aceeasi ora de ieri (+ pretul de ieri).
+    Al doilea reactioneaza mai repede cand nivelul pretului se muta. Walk-forward pe 400 de zile (README):
+    MAE 24,0 (doar nivel) / 23,6 (doar schimbare) -> 23,3 (media), mai bun in toate sferturile perioadei."""
+
+    def __init__(self, level: lgb.LGBMRegressor, delta: lgb.LGBMRegressor | None, cols: list[str]):
+        self.level, self.delta, self.cols = level, delta, list(cols)
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        X = X[self.cols]
+        lvl = self.level.predict(X)
+        if self.delta is None:
+            return lvl
+        lag = X[LAG_COL].to_numpy(dtype=float)
+        via_delta = lag + self.delta.predict(X)
+        return np.where(np.isnan(lag), lvl, 0.5 * lvl + 0.5 * via_delta)
+
+    @property
+    def feature_importances_(self) -> np.ndarray:
+        if self.delta is None:
+            return self.level.feature_importances_
+        return self.level.feature_importances_ + self.delta.feature_importances_
+
+
+def fit_pair(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, sample_weight=None,
+             **overrides) -> PairModel:
+    cols = list(cols or F.PRODUCTION_FEATURES)
+    level = fit(X, y, cols, sample_weight=sample_weight, **overrides)
+    delta = None
+    if LAG_COL in cols:
+        ok = (X[LAG_COL].notna() & y.notna()).to_numpy()
+        w = None if sample_weight is None else np.asarray(sample_weight)[ok]
+        delta = fit(X[ok], (y - X[LAG_COL])[ok], cols, sample_weight=w, **overrides)
+    return PairModel(level, delta, cols)
+
+
 @dataclass
 class ModelBundle:
     model: lgb.LGBMRegressor
@@ -47,6 +88,7 @@ class ModelBundle:
     features: list[str] = field(default_factory=lambda: list(F.PRODUCTION_FEATURES))
     nowx_model: lgb.LGBMRegressor | None = None          # fara vreme: folosit daca prognoza de vreme lipseste
     nowx_features: list[str] | None = None
+    config: str | None = None                            # vezi CONFIG
 
     def save(self, directory: str | Path = "models") -> Path:
         path = Path(directory)
@@ -87,7 +129,8 @@ def pick_variant(bundle, X: pd.DataFrame, target_day=None):
 
 
 def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame, target_day,
-                 nload: pd.DataFrame | None = None, weather: pd.DataFrame | None = None) -> pd.DataFrame:
+                 nload: pd.DataFrame | None = None, weather: pd.DataFrame | None = None,
+                 conformal: ConformalInterval | None = None) -> pd.DataFrame:
     """Forecast pentru ziua `target_day` (D+1). `prices` poate contine doar date pana la D;
     verificam ca feature-urile nu depind de nimic de la target_day incolo."""
     F.verify_no_leakage(inputs, prices, target_day, nload=nload)
@@ -100,7 +143,7 @@ def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame
         raise ValueError(f"Lipseste prognoza de consum pentru {pd.Timestamp(target_day).date()}")
     model, cols, variant = pick_variant(bundle, X, target_day)
     pred = pd.Series(model.predict(X[cols]), index=idx)
-    lo, hi = bundle.conformal.interval(pred)
+    lo, hi = (conformal or bundle.conformal).interval(pred)   # `conformal`: calibrare pe erorile recente
     mean7d = pd.Series(X["price_rolling_mean_7d"].to_numpy(), index=idx)
     blend = (0.5 * pred + 0.5 * mean7d).where(mean7d.notna(), pred)
     out = pd.DataFrame({"predicted_price": pred, "ci_lower": lo, "ci_upper": hi,

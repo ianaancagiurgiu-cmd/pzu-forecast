@@ -18,7 +18,7 @@ def _local_dates(idx: pd.DatetimeIndex) -> pd.Series:
 
 def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: int = 90,
                  target: str = "level", refit_every: int = 1, end_offset_days: int = 0,
-                 cols: list[str] | None = None, half_life_days: float | None = None,
+                 cols: list[str] | None = None, half_life_days: float | None = None, pair: bool = False,
                  **model_overrides) -> pd.DataFrame:
     """Rezultat: un rand pe interval (y, pred, date, + baseline-uri). Se testeaza ultimele
     `n_days` zile; fiecare zi e prezisa cu un model antrenat doar pe zilele anterioare."""
@@ -45,6 +45,8 @@ def walk_forward(X: pd.DataFrame, y: pd.Series, window_days: int = 60, n_days: i
                 base_tr = X.loc[tr, "price_rolling_mean_7d"]
                 ok = base_tr.notna().to_numpy()
                 m = M.fit(X[tr][ok], (y[tr] - base_tr)[ok], cols, sample_weight=None if w is None else w[ok], **model_overrides)
+            elif pair:   # modelul de productie: media nivel + schimbare fata de ieri
+                m = M.fit_pair(X[tr], y[tr], cols, sample_weight=w, **model_overrides)
             else:
                 m = M.fit(X[tr], y[tr], cols, sample_weight=w, **model_overrides)
             last_fit = k

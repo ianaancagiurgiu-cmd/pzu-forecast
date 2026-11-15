@@ -116,8 +116,9 @@ def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None
     if _local_date(bundle.trained_at, now) == today:
         return bundle
     cal_day = _local_date(getattr(bundle, "calibrated_at", None), now)
-    if cal_day is None or (today - cal_day).days >= CALIBRATION_MAX_AGE_DAYS:
-        retrain(engine, None, bundle.window_days, now=now, before=before)   # reantrenare completa + recalibrare
+    outdated = getattr(bundle, "config", None) != M.CONFIG       # model salvat cu setari vechi
+    if outdated or cal_day is None or (today - cal_day).days >= CALIBRATION_MAX_AGE_DAYS:
+        retrain(engine, None, now=now, before=before)   # reantrenare completa + recalibrare
         stored = db.load_model_bytes(engine)
         return M.ModelBundle.from_bytes(stored[1])
     X, y = F.build_training_set(db.read_df(engine, db.forecasts_input), db.read_prices(engine),
@@ -126,18 +127,44 @@ def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None
         X, y = X[X.index < before], y[y.index < before]
     dates = pd.Series(X.index.tz_convert(TZ).date, index=X.index)
     keep = dates.isin(sorted(dates.unique())[-bundle.window_days:]).to_numpy()
-    final = M.fit(X[keep], y[keep], cols=bundle.features)
+    final = M.fit_pair(X[keep], y[keep], cols=bundle.features)
     fb_cols = bundle.fallback_features or list(F.BASE_PRODUCTION_FEATURES)
-    fallback = M.fit(X[keep], y[keep], cols=fb_cols)
+    fallback = M.fit_pair(X[keep], y[keep], cols=fb_cols)
     nowx_cols = [c for c in bundle.features if not c.startswith("wx_")]
-    nowx = M.fit(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(bundle.features) else None
-    version = f"v2-{today:%Y%m%d}"
+    nowx = M.fit_pair(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(bundle.features) else None
+    version = f"v3-{today:%Y%m%d}"
     fresh = M.ModelBundle(final, version, bundle.window_days, bundle.conformal,
                           features=bundle.features, calibrated_at=bundle.calibrated_at,
                           fallback_model=fallback, fallback_features=fb_cols,
-                          nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None)
+                          nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG)
     db.save_model_bytes(engine, version, fresh.to_bytes())
     return fresh
+
+
+RECENT_CALIBRATION_DAYS = 14   # audit nov 2026: calibrarea pe 90 de zile acoperea 79% live in loc de 90%
+
+
+def recent_conformal(engine, day, days: int = RECENT_CALIBRATION_DAYS, min_days: int = 7) -> ConformalInterval | None:
+    """Interval de incredere calibrat pe erorile REALE ale prognozelor din ultimele `days` zile dinaintea lui `day`
+    (prognoza salvata vs pretul oficial). Se largeste singur cand piata e agitata si se ingusteaza cand se linisteste.
+    Walk-forward pe 400 de zile: acoperire 89,5% (cea mai slaba luna 84,5%; cu 90 de zile: 76%). None = prea putine zile."""
+    idx_end = day_index(day)[0]
+    start = idx_end - pd.Timedelta(days=days + 1)
+    with engine.connect() as conn:
+        from sqlalchemy import select
+        fc = pd.read_sql(select(db.price_forecast.c.timestamp, db.price_forecast.c.predicted_price).where(
+            db.price_forecast.c.timestamp >= start.to_pydatetime(), db.price_forecast.c.timestamp < idx_end.to_pydatetime()), conn)
+    if fc.empty:
+        return None
+    fc["timestamp"] = pd.to_datetime(fc["timestamp"], utc=True)
+    actual = db.read_prices(engine)["RO"]
+    err = (actual.reindex(fc["timestamp"]).to_numpy() - fc["predicted_price"].to_numpy(dtype=float))
+    err = pd.Series(err, index=pd.DatetimeIndex(fc["timestamp"])).dropna()
+    local_days = pd.Series(err.index.tz_convert(TZ).date, index=err.index)
+    last = sorted(local_days.unique())[-days:]
+    if len(last) < min_days:
+        return None
+    return ConformalInterval(0.10, by_hour=False).fit(err[local_days.isin(last).to_numpy()])
 
 
 # ------------------------------------------------------------------- daily ----
@@ -257,7 +284,8 @@ def daily(engine, client, day: date | None = None, force: bool = False,
         bundle = refresh_model(engine, bundle, now, before=idx[0])
     except Exception as exc:
         log.warning("Reantrenarea zilnica a esuat, folosesc modelul existent: %s", exc)
-    out = M.forecast_day(bundle, inputs, prices, day, nload=nload, weather=wx)
+    out = M.forecast_day(bundle, inputs, prices, day, nload=nload, weather=wx,
+                         conformal=recent_conformal(engine, day))
 
     generated = pd.Timestamp.now(tz="UTC").to_pydatetime()
     rows = out.reset_index(names="timestamp")
@@ -341,7 +369,7 @@ def evaluate_missed(engine, client, now: pd.Timestamp | None = None, lookback_da
 
 
 # ----------------------------------------------------------------- retrain ----
-def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
+def retrain(engine, client=None, window_days: int = M.WINDOW_DAYS, calib_days: int = 28,
             version: str | None = None, now: pd.Timestamp | None = None,
             before: pd.Timestamp | None = None) -> str:
     """`before`: antrenarea/calibrarea folosesc doar date anterioare (ex. inceputul zilei prognozate)."""
@@ -354,19 +382,20 @@ def retrain(engine, client=None, window_days: int = 60, calib_days: int = 90,
         X, y = X[X.index < before], y[y.index < before]
     if len(X) == 0:
         raise RuntimeError("Nu exista date de antrenare (ruleaza scripts/backfill.py)")
-    bt = backtest.walk_forward(X, y, window_days, calib_days, cols=_main_cols(X, slice(None)))
-    conf = ConformalInterval(0.10, by_hour=True).fit(bt["y"] - bt["pred"])
+    # calibrare de rezerva a intervalelor (cea folosita zilnic vine din erorile recente, vezi recent_conformal)
+    bt = backtest.walk_forward(X, y, window_days, calib_days, cols=_main_cols(X, slice(None)), refit_every=7, pair=True)
+    conf = ConformalInterval(0.10, by_hour=False).fit(bt["y"] - bt["pred"])
     dates = pd.Series(X.index.tz_convert(TZ).date, index=X.index)
     keep = dates.isin(sorted(dates.unique())[-window_days:]).to_numpy()
     main_cols = _main_cols(X, keep)
-    final = M.fit(X[keep], y[keep], cols=main_cols)
-    fallback = M.fit(X[keep], y[keep], cols=F.BASE_PRODUCTION_FEATURES)
+    final = M.fit_pair(X[keep], y[keep], cols=main_cols)
+    fallback = M.fit_pair(X[keep], y[keep], cols=F.BASE_PRODUCTION_FEATURES)
     nowx_cols = [c for c in main_cols if not c.startswith("wx_")]
-    nowx = M.fit(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(main_cols) else None
-    version = version or f"v2-{local_today(now):%Y%m%d}"
+    nowx = M.fit_pair(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(main_cols) else None
+    version = version or f"v3-{local_today(now):%Y%m%d}"
     bundle = M.ModelBundle(final, version, window_days, conf, calibrated_at=pd.Timestamp.now(tz="UTC").isoformat(),
                            features=main_cols, fallback_model=fallback, fallback_features=list(F.BASE_PRODUCTION_FEATURES),
-                           nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None)
+                           nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG)
     db.save_model_bytes(engine, version, bundle.to_bytes())
     m = backtest.evaluate(bt)["lightgbm"]
     return f"model {version} salvat (backtest {calib_days}z: MAE {m['mae']:.2f}, coverage {m.get('coverage_90', float('nan')):.2f})"

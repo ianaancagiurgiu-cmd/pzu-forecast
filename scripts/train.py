@@ -10,8 +10,8 @@ from pzu import db, pipeline
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--window-days", type=int, default=60)
-    ap.add_argument("--calib-days", type=int, default=90)
+    ap.add_argument("--window-days", type=int, default=365)
+    ap.add_argument("--calib-days", type=int, default=28)
     ap.add_argument("--version")
     a = ap.parse_args()
     eng = db.get_engine()

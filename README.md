@@ -223,3 +223,34 @@ bună prognoză a zilei respective), prognoza live de la 06:00 poate fi puțin m
 Prognoza de vreme pe mai multe zile (480 de zile, aceleași reguli; `D+2..D+4` și zilele anterioare ca variabile): **fără
 câștig** (MAE 25,73 în producție; +zilele următoare 25,85; +zilele anterioare 26,03; ambele 26,40). Testul folosește
 valorile arhivate, mai bune decât o prognoză reală la 2–4 zile, deci e o limită superioară: neadoptat.
+
+
+## Audit după 26 de zile live (21 oct – 15 nov 2026) și modelul v3
+Live: MAE 40,2 EUR/MWh (media pe 7 zile 51,1; prețul de ieri 45,7), la fel ca walk-forward-ul pe aceeași perioadă
+(39,3): piața a fost foarte agitată (180–410 EUR/MWh). Probleme găsite: (1) GitHub pornește doar ~5 din 14 rulări
+programate, prima pe la 12:45; 6 prognoze au fost făcute după închiderea pieței; (2) intervalul de 90% acoperea 79%;
+(3) mixul 50/50 cu media pe 7 zile e mai slab decât modelul (27,3 față de 26,3 pe 400 de zile): nu devine prognoza
+principală; (4) simularea de baterie dă doar ~34–38% din optim pe aceste zile, la fel și în walk-forward (perioadă cu
+ecart mic și salturi mari), nu e o eroare.
+
+Teste pe 400 de zile (walk-forward, reantrenare săptămânală, 400 de arbori, cu vremea din Europa):
+
+| Variantă | MAE | Ultimele 30 de zile | Baterie |
+|---|---|---|---|
+| v2: 60 de zile, prezice prețul | 26,31 | 39,29 | 81,3% |
+| 365 de zile, prezice prețul | 24,04 | 37,59 | 82,3% |
+| 365 de zile, prezice schimbarea față de ieri | 23,55 | 36,11 | 81,7% |
+| **v3: media celor două (în producție)** | **23,25** | **35,85** | **82,5%** |
+| 240 de zile / 730 de zile (cel mai bun) | 23,73 / 24,00 | 35,43 / 39,29 | – |
+| obiectiv L1 în loc de L2 (365, schimbare) | 23,44 | 37,42 | 82,0% |
+
+v3 față de v2: −3,06 ± 0,86 EUR/MWh (−11,6%), mai bun în 256 din 400 de zile și în toate cele patru sferturi ale
+perioadei. Varianta a fost aleasă dintre ~20 testate pe aceleași date, deci câștigul real va fi ceva mai mic.
+Implementare: `M.PairModel` / `M.fit_pair`, `M.WINDOW_DAYS = 365`; un model salvat cu alte setări (`ModelBundle.config`)
+se reantrenează complet la prima rulare. Reantrenarea rămâne zilnică.
+
+Intervalul de încredere se calibrează acum pe erorile reale ale prognozelor din ultimele 14 zile
+(`pipeline.recent_conformal`), nu pe 90 de zile: acoperire 89,5% (cea mai slabă lună 84,5%, față de 76%), lățime +5%.
+Alte schimbări: dacă prognoza de consum a României lipsește se folosește cea din săptămâna trecută
+(`estimate_missing_load`, prognoză preliminară); `forecast_accuracy.on_time` marchează prognozele făcute după 13:00.
+Rămâne de rezolvat ora rulării (declanșare externă, GitHub întârzie programările cu ore).
