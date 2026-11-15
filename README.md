@@ -219,3 +219,7 @@ este prognoza arhivată (`scripts/fetch_weather_history.py` + `import_weather.py
 lipsește) → `fallback` (dacă lipsește consumul vecinilor). Atenție: istoricul vine din „historical forecast” (cea mai
 bună prognoză a zilei respective), prognoza live de la 06:00 poate fi puțin mai slabă. Gazul (TTF) nu a ajutat
 (`scripts/fetch_gas.py`: 27,14 → 27,60).
+
+Prognoza de vreme pe mai multe zile (480 de zile, aceleași reguli; `D+2..D+4` și zilele anterioare ca variabile): **fără
+câștig** (MAE 25,73 în producție; +zilele următoare 25,85; +zilele anterioare 26,03; ambele 26,40). Testul folosește
+valorile arhivate, mai bune decât o prognoză reală la 2–4 zile, deci e o limită superioară: neadoptat.
