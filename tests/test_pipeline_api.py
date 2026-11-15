@@ -110,6 +110,44 @@ def test_long_prices_never_contains_missing_values():
     assert long["price_eur_mwh"].notna().all() and len(long) == 3
 
 
+def test_missing_load_is_estimated_from_last_week_only_when_needed():
+    idx = pd.date_range("2026-05-20 21:00", periods=96 * 12, freq="15min", tz="UTC")
+    inputs = pd.DataFrame({"load_forecast_mw": np.arange(len(idx), dtype=float)}, index=idx)
+    day = date(2026, 6, 1)
+    same, est = pipeline.estimate_missing_load(inputs, day)
+    assert not est and same is inputs
+    from pzu.timegrid import day_index
+    di = day_index(day)
+    holed = inputs.copy()
+    holed.loc[di, "load_forecast_mw"] = np.nan
+    filled, est = pipeline.estimate_missing_load(holed, day)
+    assert est and (filled.loc[di, "load_forecast_mw"].to_numpy() == inputs.loc[di - pd.Timedelta(days=7), "load_forecast_mw"].to_numpy()).all()
+    assert holed.loc[di, "load_forecast_mw"].isna().all()          # originalul ramane neatins
+    none, est = pipeline.estimate_missing_load(holed[holed.index >= di[0] - pd.Timedelta(days=2)], day)
+    assert not est                                                  # fara saptamana trecuta nu inventam nimic
+
+
+def test_on_time_flags_forecasts_made_after_gate_closure():
+    day = date(2026, 11, 10)                                        # piata se inchide pe 9 nov la 13:00 (11:00 UTC)
+    assert pipeline._on_time(pd.Timestamp("2026-11-09 10:59", tz="UTC"), day) is True
+    assert pipeline._on_time(pd.Timestamp("2026-11-09 11:28"), day) is False      # naiv = UTC
+    assert pipeline._on_time(None, day) is None
+
+
+def test_evaluate_records_on_time_and_backfill_fills_old_rows(env):
+    eng, ro = env
+    with eng.begin() as conn:
+        conn.execute(db.forecast_accuracy.delete())
+    pipeline.daily(eng, OfflineClient(), DAY)
+    pipeline.evaluate(eng, PricesClient(ro), DAY)
+    acc = db.read_df(eng, db.forecast_accuracy, index=None)
+    assert acc["on_time"].iloc[0] in (True, False) and pd.notna(acc["generated_at"].iloc[0])
+    with eng.begin() as conn:
+        conn.execute(db.forecast_accuracy.update().values(on_time=None, generated_at=None))
+    assert pipeline.backfill_on_time(eng) == 1
+    assert db.read_df(eng, db.forecast_accuracy, index=None)["on_time"].notna().all()
+
+
 def test_target_day_is_tomorrow_local():
     now = pd.Timestamp("2026-10-20 03:30", tz="UTC")     # 06:30 ora Romaniei
     assert pipeline.target_day(now) == date(2026, 10, 21)

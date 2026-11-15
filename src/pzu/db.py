@@ -3,7 +3,7 @@ Timestamp-urile se stocheaza in UTC; la citire se returneaza tz-aware UTC."""
 import numpy as np
 import pandas as pd
 from sqlalchemy import (
-    JSON, Column, Date, DateTime, Float, LargeBinary, MetaData, String, Table, create_engine, delete,
+    JSON, Boolean, Column, Date, DateTime, Float, LargeBinary, MetaData, String, Table, create_engine, delete,
     inspect, select, text, tuple_,
 )
 from sqlalchemy.engine import Engine
@@ -61,6 +61,8 @@ forecast_accuracy = Table(
     Column("mae", Float), Column("rmse", Float), Column("smape", Float),
     Column("directional_hit_rate", Float), Column("coverage_90", Float),
     Column("model_version", String(20)),
+    Column("generated_at", TS),      # cand a fost facuta prognoza evaluata
+    Column("on_time", Boolean),      # False = facuta dupa inchiderea pietei (nu putea fi folosita la licitatie)
 )
 
 

@@ -102,7 +102,7 @@ async function load(day){
   try{
     const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
     $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`+
-      (f.variant?` · varianta ${f.variant==="main"?"completă":f.variant==="noweather"?"fără prognoza de vreme":"de rezervă (fără consumul vecinilor)"}`:"")+(f.updates>1?` · ${f.updates} versiuni`:"");
+      (f.variant?` · varianta ${f.variant==="main"?"completă":f.variant==="noweather"?"fără prognoza de vreme":"de rezervă (fără consumul vecinilor)"}`:"")+(f.load_estimated?" · preliminară: consumul României estimat din săptămâna trecută":"")+(f.updates>1?` · ${f.updates} versiuni`:"");
     renderVersions(day);
     if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
     else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
@@ -124,7 +124,9 @@ async function load(day){
 async function acc(){
   const a=await j("/api/v1/accuracy?days=30");
   if(!a.items.length){$("acc").textContent="Încă nu există zile evaluate (evaluarea rulează zilnic după publicarea rezultatelor oficiale).";return}
-  $("acc").innerHTML=`MAE mediu: <b>${fmt(a.mean_mae)}</b> EUR/MWh pe ${a.days} zile`;
+  $("acc").innerHTML=`MAE mediu: <b>${fmt(a.mean_mae)}</b> EUR/MWh pe ${a.days} zile`+
+    (a.late_days?` · ${a.late_days} ${a.late_days==1?"zi cu prognoză făcută":"zile cu prognoza făcută"} după închiderea pieței (fără ${a.late_days==1?"ea":"ele"}: ${fmt(a.mean_mae_on_time)})`:"")+
+    (a.mean_coverage!=null?` · intervalul de 90% a prins prețul în ${Math.round(100*a.mean_coverage)}% din intervale`:"");
   const d=document.createElement("div");$("acc").appendChild(d);
   chart(d,[{y:a.items.map(x=>x.mae),color:"var(--acc)",bars:true}],{label:"MAE zilnic",titles:a.items.map(x=>x.forecast_date),ticks:a.items.map((x,i)=>[i,x.forecast_date.slice(5)]).filter((_,i)=>i%5==0)});
 }

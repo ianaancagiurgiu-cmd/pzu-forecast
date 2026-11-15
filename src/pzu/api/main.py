@@ -60,6 +60,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         hist = db.read_forecast_history(engine, day_index(date))
         return {
             "variant": (meta or {}).get("variant"),
+            "load_estimated": bool((meta or {}).get("load_estimated")),
             "updates": int(hist["generated_at"].nunique()) if not hist.empty else 1,
             "date": date.isoformat(),
             "generated_at": _iso(pd.to_datetime(fc["forecast_generated_at"], utc=True).max()),
@@ -147,8 +148,11 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         acc = acc[acc["forecast_date"] >= date.today() - timedelta(days=days)].sort_values("forecast_date")
         items = [{k: (v.isoformat() if isinstance(v, date) else (None if pd.isna(v) else v))
                   for k, v in r.items()} for r in acc.to_dict("records")]
+        late = acc[acc["on_time"] == False] if "on_time" in acc else acc.iloc[0:0]   # noqa: E712
+        ok = acc.drop(late.index)
         return {"days": len(items), "mean_mae": _round(acc["mae"].mean()) if len(acc) else None,
-                "items": items}
+                "late_days": int(len(late)), "mean_mae_on_time": _round(ok["mae"].mean()) if len(ok) else None,
+                "mean_coverage": _round(acc["coverage_90"].mean()) if len(acc) else None, "items": items}
 
     @app.get("/")
     def index():

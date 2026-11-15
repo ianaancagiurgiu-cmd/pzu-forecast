@@ -156,11 +156,40 @@ def neighbor_load_ready(nload: pd.DataFrame, day) -> bool:
     return bool(nload.reindex(day_index(day))[list(NEIGHBORS)].notna().all().all())
 
 
-def gate_closed(day, now: pd.Timestamp | None = None) -> bool:
+def gate_time(day) -> pd.Timestamp:
     """Piata PZU se inchide la 12:00 CET = 13:00 ora Romaniei, in ziua dinaintea zilei prognozate."""
+    return pd.Timestamp(pd.Timestamp(day).date() - timedelta(days=1), tz=TZ) + pd.Timedelta(hours=13)
+
+
+def gate_closed(day, now: pd.Timestamp | None = None) -> bool:
     now = (now or pd.Timestamp.now(tz=TZ)).tz_convert(TZ)
-    closing = pd.Timestamp(pd.Timestamp(day).date() - timedelta(days=1), tz=TZ) + pd.Timedelta(hours=13)
-    return now >= closing
+    return now >= gate_time(day)
+
+
+def _on_time(generated_at, day) -> bool | None:
+    """Prognoza a fost facuta inainte de inchiderea pietei (deci putea fi folosita)?"""
+    if generated_at is None or pd.isna(generated_at):
+        return None
+    g = pd.Timestamp(generated_at)
+    g = g.tz_localize("UTC") if g.tzinfo is None else g
+    return bool(g < gate_time(day))
+
+
+def estimate_missing_load(inputs: pd.DataFrame, day) -> tuple[pd.DataFrame, bool]:
+    """Plan B: daca prognoza de consum a Romaniei pentru `day` nu e publicata inca, o estimam cu cea din aceeasi zi
+    a saptamanii trecute, ca sa existe o prognoza de pret inainte de inchiderea pietei. Cand apare prognoza
+    oficiala, amprenta datelor se schimba si prognoza de pret se reface."""
+    idx = day_index(day)
+    cur = inputs["load_forecast_mw"].reindex(idx) if "load_forecast_mw" in inputs else pd.Series(np.nan, index=idx)
+    if not cur.isna().any():
+        return inputs, False
+    prev = inputs["load_forecast_mw"].reindex(idx - pd.Timedelta(days=7)) if "load_forecast_mw" in inputs else cur
+    if prev.isna().any():
+        return inputs, False
+    filled = cur.where(cur.notna(), pd.Series(prev.to_numpy(), index=idx))
+    out = inputs.reindex(inputs.index.union(idx)).copy()
+    out.loc[idx, "load_forecast_mw"] = filled.to_numpy()
+    return out, True
 
 
 def inputs_fingerprint(inputs: pd.DataFrame, nload: pd.DataFrame | None, prices: pd.DataFrame, day,
@@ -211,6 +240,7 @@ def daily(engine, client, day: date | None = None, force: bool = False,
     inputs, prices = db.read_df(engine, db.forecasts_input), db.read_prices(engine)
     nload = db.read_neighbor_load(engine)
     wx = db.read_weather(engine)
+    inputs, load_estimated = estimate_missing_load(inputs, day)
     try:
         check_inputs_ready(inputs, day)
     except NotReady:
@@ -235,13 +265,14 @@ def daily(engine, client, day: date | None = None, force: bool = False,
     variant = out["variant"].iloc[0]
     rows["features_used"] = [{"features": bundle.features if variant == "main" else bundle.fallback_features,
                               "window_days": bundle.window_days, "variant": variant,
-                              "inputs_hash": fingerprint}] * len(rows)
+                              "load_estimated": load_estimated, "inputs_hash": fingerprint}] * len(rows)
     db.upsert_df(engine, db.price_forecast, rows, ["timestamp"])
     hist = rows.rename(columns={"forecast_generated_at": "generated_at"})
     hist["inputs_hash"] = fingerprint
     db.upsert_df(engine, db.forecast_history, hist, ["generated_at", "timestamp"])
     verb = "actualizat" if existing else "salvat"
-    return f"forecast {day} {verb} ({len(rows)} intervale, model {bundle.version}, varianta {variant})"
+    note = ", consum RO estimat din saptamana trecuta" if load_estimated else ""
+    return f"forecast {day} {verb} ({len(rows)} intervale, model {bundle.version}, varianta {variant}{note})"
 
 
 # ---------------------------------------------------------------- evaluate ----
@@ -264,9 +295,31 @@ def evaluate(engine, client, day: date | None = None, force: bool = False,
         raise NotReady(f"Preturile oficiale pentru {day} nu sunt (complet) publicate")
     db.upsert_df(engine, db.prices_actual, _long(actual.to_frame("RO")), ["timestamp", "zone"])
     m = metrics.summarize(actual, fc["predicted_price"], fc["ci_lower"], fc["ci_upper"])
-    row = pd.DataFrame([{"forecast_date": day, **m, "model_version": fc["model_version"].iloc[0]}])
+    gen = fc["forecast_generated_at"].max() if "forecast_generated_at" in fc else None
+    row = pd.DataFrame([{"forecast_date": day, **m, "model_version": fc["model_version"].iloc[0],
+                         "generated_at": None if gen is None or pd.isna(gen) else pd.Timestamp(gen).to_pydatetime(),
+                         "on_time": _on_time(gen, day)}])
     db.upsert_df(engine, db.forecast_accuracy, row, ["forecast_date"])
     return f"evaluare {day}: MAE {m['mae']:.2f}, RMSE {m['rmse']:.2f}, coverage {m['coverage_90']:.2f}"
+
+
+def backfill_on_time(engine) -> int:
+    """Completeaza `on_time` pentru evaluarile vechi (facute inainte sa existe coloana)."""
+    acc = db.read_df(engine, db.forecast_accuracy, index=None)
+    if acc.empty or not acc["on_time"].isna().any():
+        return 0
+    n = 0
+    for _, r in acc[acc["on_time"].isna()].iterrows():
+        day = pd.Timestamp(r["forecast_date"]).date()
+        fc = db.read_forecast(engine, day_index(day))
+        if fc.empty or "forecast_generated_at" not in fc or fc["forecast_generated_at"].isna().all():
+            continue
+        gen = fc["forecast_generated_at"].max()
+        with engine.begin() as conn:
+            conn.execute(db.forecast_accuracy.update().where(db.forecast_accuracy.c.forecast_date == day)
+                         .values(generated_at=pd.Timestamp(gen).to_pydatetime(), on_time=_on_time(gen, day)))
+        n += 1
+    return n
 
 
 def evaluate_missed(engine, client, now: pd.Timestamp | None = None, lookback_days: int = 7) -> list[str]:
@@ -336,6 +389,7 @@ def main(argv=None) -> int:
             print(daily(engine, client, a.date, a.force))
         elif a.job == "evaluate":
             if a.date is None:
+                backfill_on_time(engine)
                 for msg in evaluate_missed(engine, client):
                     print(msg)
             print(evaluate(engine, client, a.date, a.force))
