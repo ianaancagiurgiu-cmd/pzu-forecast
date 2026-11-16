@@ -254,3 +254,10 @@ Intervalul de încredere se calibrează acum pe erorile reale ale prognozelor di
 Alte schimbări: dacă prognoza de consum a României lipsește se folosește cea din săptămâna trecută
 (`estimate_missing_load`, prognoză preliminară); `forecast_accuracy.on_time` marchează prognozele făcute după 13:00.
 Rămâne de rezolvat ora rulării (declanșare externă, GitHub întârzie programările cu ore).
+
+Teste ulterioare pe v3 (400 de zile, reantrenare la 14 zile; baza 23,74): numărul de arbori contează – 1000 (cât era în
+producție) dă 24,01 (−0,26 ± 0,10 față de 400), 200 dă 23,60 (+0,14 ± 0,12), deci `n_estimators = 200`. Fără câștig
+semnificativ: gazul TTF (+0,14 ± 0,31, negativ în prima jumătate), variabile pentru forma zilei/vârful de seară
+(+0,34 ± 0,44), frunze 15/63, minim 100 pe frunză, 50% din coloane, ritm 0,03 – neadoptate.
+Alertă: `python -m pzu.pipeline check` (cod 3 = lipsește prognoza de mâine); workflow-ul `Daily forecast` deschide un
+issue „Prognoza lipseste” la rulările de dinaintea închiderii pieței și îl închide când prognoza apare.

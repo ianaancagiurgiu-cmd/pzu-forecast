@@ -17,7 +17,7 @@ from pzu.conformal import ConformalInterval
 from pzu.timegrid import day_index
 
 PARAMS = dict(
-    objective="regression", metric="mae", n_estimators=1000, learning_rate=0.05,
+    objective="regression", metric="mae", n_estimators=200, learning_rate=0.05,   # 200: vezi README (1000 supraajusta)
     num_leaves=31, max_depth=7, min_child_samples=20, subsample=0.8, subsample_freq=1,
     colsample_bytree=0.8, reg_alpha=0.1, reg_lambda=0.1, random_state=42,
     verbosity=-1, n_jobs=-1,
