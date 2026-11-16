@@ -148,6 +148,14 @@ def test_evaluate_records_on_time_and_backfill_fills_old_rows(env):
     assert db.read_df(eng, db.forecast_accuracy, index=None)["on_time"].notna().all()
 
 
+def test_check_reports_missing_forecast(env):
+    eng, _ = env
+    pipeline.daily(eng, OfflineClient(), DAY)
+    assert pipeline.check(eng, DAY)[0] is True
+    ok, msg = pipeline.check(eng, date(2031, 1, 1))
+    assert ok is False and "LIPSESTE" in msg
+
+
 def test_target_day_is_tomorrow_local():
     now = pd.Timestamp("2026-10-20 03:30", tz="UTC")     # 06:30 ora Romaniei
     assert pipeline.target_day(now) == date(2026, 10, 21)

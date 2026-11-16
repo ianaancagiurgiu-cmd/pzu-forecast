@@ -18,9 +18,14 @@ on:
         description: "Regenereaza forecast-ul chiar daca exista deja pentru ziua urmatoare"
         type: boolean
         default: false
+      alert:
+        description: "Deschide o alerta (issue) daca prognoza pentru maine lipseste dupa rulare"
+        type: boolean
+        default: false
 concurrency: { group: pzu-db, cancel-in-progress: false }
 permissions:
   contents: write
+  issues: write
 jobs:
   daily:
     runs-on: ubuntu-latest
@@ -42,6 +47,25 @@ jobs:
           FINAL: ${{ github.event.schedule == '53 8 * * *' && '--final' || '' }}
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: python -m pzu.pipeline daily $FINAL $FORCE
+      - name: Alerta daca prognoza lipseste
+        # la cerere (alert=true) si la rularile programate de dinaintea inchiderii pietei (11:23 si 12:23 ora Romaniei, iarna)
+        if: always() && (inputs.alert || github.event.schedule == '23 9 * * *' || github.event.schedule == '23 10 * * *') && hashFiles('pzu.db') != ''
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set +e
+          msg=$(python -m pzu.pipeline check); code=$?
+          echo "$msg"
+          open=$(gh issue list --state open --search "Prognoza lipseste in:title" --json number -q '.[].number')
+          if [ $code -eq 3 ]; then
+            if [ -z "$open" ]; then
+              gh issue create --title "Prognoza lipseste: $(TZ=Europe/Bucharest date +%Y-%m-%d\ %H:%M)" \
+                --body "$msg la $(TZ=Europe/Bucharest date +%H:%M) (ora Romaniei). Piata se inchide la 13:00. Vezi rularea: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            fi
+          elif [ $code -eq 0 ]; then
+            for n in $open; do gh issue close "$n" --comment "$msg (rezolvat automat)."; done
+          fi
+          exit 0
       - name: Actualizeaza baza de date si dashboard-ul
         if: always() && hashFiles('pzu.db') != ''
         run: |

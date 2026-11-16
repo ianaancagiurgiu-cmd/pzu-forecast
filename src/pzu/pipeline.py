@@ -401,10 +401,18 @@ def retrain(engine, client=None, window_days: int = M.WINDOW_DAYS, calib_days: i
     return f"model {version} salvat (backtest {calib_days}z: MAE {m['mae']:.2f}, coverage {m.get('coverage_90', float('nan')):.2f})"
 
 
+def check(engine, day: date | None = None, now: pd.Timestamp | None = None) -> tuple[bool, str]:
+    """Exista prognoza completa pentru `day` (implicit: ziua urmatoare)? Folosit pentru alerta de dinaintea inchiderii pietei."""
+    day = day or target_day(now)
+    idx = day_index(day)
+    ok = db.count_forecast_rows(engine, idx[0], idx[-1]) == len(idx)
+    return ok, (f"prognoza pentru {day} exista" if ok else f"LIPSESTE prognoza pentru {day}")
+
+
 # --------------------------------------------------------------------- CLI ----
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pzu.pipeline")
-    ap.add_argument("job", choices=["daily", "evaluate", "retrain"])
+    ap.add_argument("job", choices=["daily", "evaluate", "retrain", "check"])
     ap.add_argument("--date", type=date.fromisoformat)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--final", action="store_true", help="ultima incercare: esec = cod de iesire 1")
@@ -412,6 +420,10 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     engine = db.get_engine()
     db.init_db(engine)
+    if a.job == "check":   # cod de iesire 3 = prognoza lipseste
+        ok, msg = check(engine, a.date)
+        print(msg)
+        return 0 if ok else 3
     try:
         client = entsoe.make_client(get_settings().entsoe_token)
         if a.job == "daily":
