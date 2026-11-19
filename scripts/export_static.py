@@ -16,7 +16,7 @@ from pzu.api.main import STATIC, create_app
 def build_data(client: TestClient, days: int) -> dict:
     dates = client.get(f"/api/v1/forecast/dates?limit={days}").json()["dates"]
     data = {"dates": dates, "forecast": {}, "summary": {}, "versions": {},
-            "accuracy": client.get("/api/v1/accuracy?days=45").json()}
+            "accuracy": client.get("/api/v1/accuracy?days=365").json()}
     for d in dates:
         data["forecast"][d] = client.get(f"/api/v1/forecast/pzu?date={d}").json()
         data["summary"][d] = client.get(f"/api/v1/forecast/pzu/summary?date={d}").json()

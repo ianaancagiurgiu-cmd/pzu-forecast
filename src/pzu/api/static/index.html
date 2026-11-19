@@ -177,13 +177,17 @@ async function j(u){
 
 <section class="card" aria-labelledby="atitle">
   <div class="card-h">
-    <h2 id="atitle">Cât de bine a prognozat, zi de zi</h2>
-    <span class="sub">click pe o zi ca s-o deschizi</span>
+    <div><h2 id="atitle">Evoluția acurateței, de la început</h2><div class="sub">eroarea medie a fiecărei zile și tendința ei · click pe o zi ca s-o deschizi</div></div>
+    <div class="seg" role="group" aria-label="Perioada" id="arange">
+      <button data-r="all" aria-pressed="true">Toată perioada</button><button data-r="30" aria-pressed="false">30 de zile</button>
+    </div>
   </div>
   <div class="kpis" id="akpis" style="margin-bottom:8px"></div>
   <div class="legend" id="alegend"></div>
   <div class="chartwrap" id="awrap"><div id="achart"></div><div class="tip" id="atip" role="status"></div></div>
-  <p class="note">Eroare medie = cu cât s-a înșelat prognoza, în medie, pe fiecare interval de 15 minute. Zilele estompate au avut prognoza făcută după închiderea pieței (13:00), deci n-ar fi putut fi folosite.</p>
+  <h2 style="margin:18px 0 8px">Pe etape ale modelului</h2>
+  <div class="tbl" style="max-height:none"><table><thead><tr><th>Etapa</th><th>Zile</th><th>Eroare prognoză</th><th>Eroare media 7 zile</th><th>Mai bună cu</th><th>Real în banda 90%</th><th>Făcute la timp</th></tr></thead><tbody id="phases"></tbody></table></div>
+  <p class="note">Eroare medie = cu cât s-a înșelat prognoza, în medie, pe fiecare interval de 15 minute (€/MWh); mai mic e mai bine. Linia continuă e media ultimelor 7 zile, ca să se vadă tendința peste zgomotul zilnic. „Media 7 zile” e metoda simplă de comparație: prețul de la aceeași oră, mediat pe ultima săptămână. Barele estompate sunt zile prognozate după închiderea pieței (13:00). Etapele scurte au puține zile, deci cifrele lor se pot schimba mult; piața a fost și ea foarte agitată în noiembrie.</p>
 </section>
 
 <section class="card">
@@ -197,7 +201,7 @@ async function j(u){
 </main>
 
 <script>
-const S={dates:[],day:null,f:null,s:null,res:15,hmode:"pred",show:{band:true,model:true,real:true,ref:true,mix:false},acc:null};
+const S={dates:[],day:null,f:null,s:null,res:15,hmode:"pred",show:{band:true,model:true,real:true,ref:true,mix:false},acc:null,arange:"all"};
 try{const t=localStorage.getItem("pzu-theme");if(t)document.documentElement.dataset.theme=t;
   const sh=JSON.parse(localStorage.getItem("pzu-show")||"null");if(sh)Object.assign(S.show,sh);
   const r=localStorage.getItem("pzu-res");if(r)S.res=+r}catch(e){}
@@ -398,41 +402,73 @@ function renderTable(){
 }
 
 /* ---------- acuratete ---------- */
+// Momentele in care s-a schimbat ceva important (prima zi de livrare afectata)
+const EVENTS=[{d:"2026-10-21",s:"v1",t:"v1: primul model"},{d:"2026-10-22",s:"v2",t:"v2: doar date știute dimineața, vecini, regiune"},
+  {d:"2026-11-13",s:"vreme",t:"v2 + vremea din toată Europa"},{d:"2026-11-17",s:"v3",t:"v3: 365 de zile, nivel + schimbare, interval adaptiv"},
+  {d:"2026-11-19",s:"oră fixă",t:"v3 + pornire la oră fixă"}];
+const avgOf=(xs,k)=>{const v=xs.map(x=>x[k]).filter(v=>v!=null);return v.length?v.reduce((s,z)=>s+z,0)/v.length:null};
+function renderPhases(items){
+  const tb=$("phases");tb.textContent="";
+  EVENTS.forEach((e,i)=>{const nx=EVENTS[i+1],xs=items.filter(x=>x.forecast_date>=e.d&&(!nx||x.forecast_date<nx.d));if(!xs.length)return;
+    const m=avgOf(xs,"mae"),r=avgOf(xs,"mae_mean7d"),g=r?(1-m/r)*100:null,ot=xs.filter(x=>x.on_time===true).length;
+    const tr=document.createElement("tr");
+    const end=nx?addDays(nx.d,-1):xs[xs.length-1].forecast_date;
+    [`${e.t} (${shortDay(e.d)}${end!==e.d?" – "+shortDay(end):""})`,String(xs.length),f1(m),f1(r),g==null?"–":(g>=0?"":"−")+f0(Math.abs(g))+"%",f0(100*avgOf(xs,"coverage_90"))+"%",`${ot}/${xs.length}`]
+      .forEach((v,k)=>{const td=document.createElement("td");td.textContent=v;if(k===0){td.style.whiteSpace="normal";td.style.textAlign="left";td.style.minWidth="230px"}
+        if(k===4&&g!=null){td.style.fontWeight="600";td.style.color=g>=0?css("--goodtx"):css("--crit")}tr.append(td)});
+    tb.append(tr)});
+}
 function renderAccuracy(a){
-  const el=$("akpis");el.textContent="";const items=a.items||[];
-  if(!items.length){$("achart").textContent="Încă nu există zile evaluate.";return}
-  const ok=items.filter(x=>x.on_time!==false),mean=(xs,k)=>{const v=xs.map(x=>x[k]).filter(v=>v!=null);return v.length?v.reduce((s,z)=>s+z,0)/v.length:null};
-  const m7=mean(items,"mae"),r7=mean(items,"mae_mean7d"),last7=items.slice(-7);
-  el.append(kpi("Eroare medie, ultimele zile",f1(m7),"€/MWh",`${items.length} zile evaluate`+(r7!=null?` · media 7 zile: ${f1(r7)}`:"")));
-  el.append(kpi("Ultimele 7 zile",f1(mean(last7,"mae")),"€/MWh",r7!=null?`media 7 zile: ${f1(mean(last7,"mae_mean7d"))}`:null));
-  el.append(kpi("Real în banda de 90%",f0(100*mean(items,"coverage_90")),"%","ținta: 90%"));
-  el.append(kpi("Prognoze făcute la timp",`${ok.length}/${items.length}`,"",ok.length<items.length&&mean(ok,"mae")!=null?`eroare doar pe cele la timp: ${f1(mean(ok,"mae"))}`:"înainte de 13:00"));
+  const el=$("akpis");el.textContent="";const all=a.items||[];
+  if(!all.length){$("achart").textContent="Încă nu există zile evaluate.";return}
+  document.querySelectorAll("#arange button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.r===S.arange)));
+  const items=S.arange==="30"?all.slice(-30):all;
+  renderPhases(all);
+  const m=avgOf(items,"mae"),r=avgOf(items,"mae_mean7d"),last7=all.slice(-7),first7=all.slice(0,7),ok=items.filter(x=>x.on_time===true);
+  el.append(kpi(S.arange==="30"?"Eroare medie, 30 de zile":"Eroare medie, toată perioada",f1(m),"€/MWh",`${items.length} zile`+(r!=null?` · media 7 zile: ${f1(r)}`:"")));
+  el.append(kpi("Primele 7 zile → ultimele 7",`${f0(avgOf(first7,"mae"))} → ${f0(avgOf(last7,"mae"))}`,"€/MWh",`media 7 zile: ${f0(avgOf(first7,"mae_mean7d"))} → ${f0(avgOf(last7,"mae_mean7d"))}`));
+  el.append(kpi("Real în banda de 90%",f0(100*avgOf(items,"coverage_90")),"%","ținta: 90%"));
+  el.append(kpi("Prognoze făcute la timp",`${ok.length}/${items.length}`,"",ok.length&&ok.length<items.length?`eroare pe cele la timp: ${f1(avgOf(ok,"mae"))}`:"înainte de 13:00"));
+  // medii mobile pe 7 zile (tendinta)
+  const roll=k=>items.map((x,i)=>{const w=items.slice(Math.max(0,i-6),i+1).map(z=>z[k]).filter(v=>v!=null);return w.length>=3?w.reduce((s,z)=>s+z,0)/w.length:null});
+  const tm=roll("mae"),tr=roll("mae_mean7d");
   const lg=$("alegend");lg.textContent="";
-  [["Eroarea prognozei","--model",0],["Eroarea mediei pe 7 zile (referință)","--ref",1]].forEach(([n,c,ln])=>{if(ln&&r7==null)return;const s=document.createElement("span");s.className="pill";const k=document.createElement("i");k.className=ln?"key":"key band";if(ln){k.style.borderTopColor=css(c);k.style.borderTopStyle="dashed"}else k.style.background=css(c);s.append(k,n);lg.append(s)});
-  const W=Math.max(320,$("awrap").clientWidth||1000),H=W<640?190:230,L=40,R=8,T=12,B=28,pw=W-L-R,ph=H-T-B,n=items.length,step=pw/n;
-  const hi=Math.max(...items.map(x=>Math.max(x.mae||0,x.mae_mean7d||0)))*1.08,ticks=niceTicks(0,hi,4),top=ticks[ticks.length-1];
+  [["Eroarea zilei","--model","bar"],["Tendința prognozei (7 zile)","--model","line"],["Tendința mediei pe 7 zile (referință)","--ref","dash"]].forEach(([n,c,kind])=>{
+    if(kind==="dash"&&r==null)return;const sp=document.createElement("span");sp.className="pill";const k=document.createElement("i");
+    if(kind==="bar"){k.className="key band";k.style.background=css(c);k.style.opacity=.45}else{k.className="key";k.style.borderTopColor=css(c);if(kind==="dash")k.style.borderTopStyle="dashed";k.style.borderTopWidth="2px"}
+    sp.append(k,n);lg.append(sp)});
+  const W=Math.max(320,$("awrap").clientWidth||1000),H=W<640?230:280,L=40,R=8,T=30,B=28,pw=W-L-R,ph=H-T-B,n=items.length,step=pw/n;
+  const hi=Math.max(...items.map(x=>Math.max(x.mae||0,x.mae_mean7d||0)))*1.05,ticks=niceTicks(0,hi,4),top=ticks[ticks.length-1];
   const sy=v=>T+(top-v)/top*ph,NS="http://www.w3.org/2000/svg",svg=document.createElementNS(NS,"svg");
-  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");svg.setAttribute("aria-label","Eroarea medie zilnică");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");svg.setAttribute("aria-label","Eroarea medie zilnică și tendința ei, pe toată perioada");
   const add=(tag,at,txt,parent=svg)=>{const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;parent.append(e);return e};
   ticks.forEach(v=>{add("line",{x1:L,x2:W-R,y1:sy(v),y2:sy(v),stroke:css("--grid")});add("text",{x:L-8,y:sy(v)+4,"text-anchor":"end"},f0(v))});
-  const bw=Math.max(2,Math.min(22,step-4)),tip=$("atip"),wrap=$("awrap");
+  // etapele: linie verticala + eticheta scurta
+  EVENTS.forEach((e,k)=>{const i=items.findIndex(x=>x.forecast_date>=e.d);if(i<0||(i===0&&items[0].forecast_date!==e.d))return;
+    const x=L+step*i;add("line",{x1:x,x2:x,y1:T-4,y2:T+ph,stroke:css("--text2"),"stroke-dasharray":"2 3","stroke-width":1,opacity:.6});
+    const nearR=x>W-R-60,t=add("text",{x:nearR?x-3:x+3,y:k%2?T-6:T-18,"text-anchor":nearR?"end":"start",style:"font-size:10.5px;font-weight:600;fill:"+css("--text2")},e.s);add("title",{},e.t,t)});
+  const bw=Math.max(2,Math.min(18,step-3)),tip=$("atip"),wrap=$("awrap");
   items.forEach((x,i)=>{const cx=L+step*(i+.5),late=x.on_time===false,sel=x.forecast_date===S.day;
     const g=add("g",{tabindex:0,role:"button","aria-label":`${x.forecast_date}: eroare ${f1(x.mae)}`,style:"cursor:pointer"});
     add("rect",{x:cx-step/2,y:T,width:step,height:ph,fill:"transparent"},null,g);
-    const h=Math.max(1,sy(0)-sy(x.mae));
-    add("rect",{x:cx-bw/2,y:sy(x.mae),width:bw,height:h,rx:Math.min(4,bw/2),fill:css("--model"),opacity:late?.35:1,stroke:sel?css("--text"):"none","stroke-width":sel?2:0},null,g);
+    add("rect",{x:cx-bw/2,y:sy(x.mae),width:bw,height:Math.max(1,sy(0)-sy(x.mae)),rx:Math.min(3,bw/2),fill:css("--model"),opacity:late?.18:.42,stroke:sel?css("--text"):"none","stroke-width":sel?2:0},null,g);
     const on=()=>{tip.textContent="";const t=document.createElement("div");t.className="t";t.textContent=niceDay(x.forecast_date);tip.append(t);
-      const row=(n,v)=>{const r=document.createElement("div");r.className="r";const a=document.createElement("span");a.textContent=n;const b=document.createElement("b");b.textContent=v;r.append(a,b);tip.append(r)};
-      row("Eroare prognoză",f1(x.mae));if(x.mae_mean7d!=null)row("Eroare media 7 zile",f1(x.mae_mean7d));row("Real în banda de 90%",f0(100*x.coverage_90)+"%");
-      row("Făcută",x.on_time===false?"după închidere":x.on_time?"la timp":"–");
+      const row=(nm,v)=>{const rr=document.createElement("div");rr.className="r";const a=document.createElement("span");a.textContent=nm;const b=document.createElement("b");b.textContent=v;rr.append(a,b);tip.append(rr)};
+      row("Eroare prognoză",f1(x.mae));if(x.mae_mean7d!=null)row("Eroare media 7 zile",f1(x.mae_mean7d));
+      if(tm[i]!=null)row("Tendință (7 zile)",f1(tm[i]));row("Real în banda de 90%",f0(100*x.coverage_90)+"%");
+      row("Model",x.model_version||"–");row("Făcută",x.on_time===false?"după închidere":x.on_time?"la timp":"–");
       const bb=wrap.getBoundingClientRect(),px=cx/W*bb.width;tip.style.opacity=1;const tw=tip.offsetWidth;tip.style.left=Math.min(Math.max(px-tw/2,0),bb.width-tw)+"px";tip.style.top="0px"};
     g.addEventListener("pointerenter",on);g.addEventListener("focus",on);g.addEventListener("pointerleave",()=>tip.style.opacity=0);g.addEventListener("blur",()=>tip.style.opacity=0);
-    const go=()=>{if(S.dates.includes(x.forecast_date))selectDay(x.forecast_date)};g.addEventListener("click",go);g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){go();e.preventDefault()}});
+    const go=()=>{if(S.dates.includes(x.forecast_date))selectDay(x.forecast_date)};g.addEventListener("click",go);g.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){go();ev.preventDefault()}});
     if(i%Math.ceil(n/(W<640?5:12))===0||i===n-1)add("text",{x:cx,y:H-10,"text-anchor":"middle"},shortDay(x.forecast_date))});
-  const pts=items.map((x,i)=>x.mae_mean7d==null?null:`${L+step*(i+.5)},${sy(x.mae_mean7d)}`).filter(Boolean);
-  if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:css("--ref"),"stroke-width":1.6,"stroke-dasharray":"5 4","pointer-events":"none"});
+  const path=(vals,c,wd,dash)=>{const pts=vals.map((v,i)=>v==null?null:`${L+step*(i+.5)},${sy(v)}`).filter(Boolean);
+    if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:css(c),"stroke-width":wd,"stroke-linejoin":"round","stroke-linecap":"round",...(dash?{"stroke-dasharray":dash}:{}),"pointer-events":"none"})};
+  path(tr,"--ref",1.8,"5 4");path(tm,"--model",2.6);
+  // eticheta directa la capatul liniilor
+  const li=tm.length-1;if(tm[li]!=null)add("text",{x:W-R,y:sy(tm[li])-8,"text-anchor":"end",style:"font-size:11px;font-weight:600;fill:"+css("--text")},f1(tm[li]));
   $("achart").replaceChildren(svg);
 }
+document.querySelectorAll("#arange button").forEach(b=>b.onclick=()=>{S.arange=b.dataset.r;if(S.acc)renderAccuracy(S.acc)});
 
 /* ---------- navigare ---------- */
 async function selectDay(day){
@@ -470,7 +506,7 @@ let rt,lw=innerWidth;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeo
     const {dates}=await j("/api/v1/forecast/dates");S.dates=dates;
     if(!dates.length){$("dtitle").textContent="Nu există încă nicio prognoză.";return}
     const sel=$("day");sel.textContent="";dates.forEach(d=>{const o=document.createElement("option");o.value=d;o.textContent=`${shortDay(d)} · ${DOW[new Date(d+"T12:00:00").getDay()]}`;sel.append(o)});
-    try{S.acc=await j("/api/v1/accuracy?days=45")}catch(e){}
+    try{S.acc=await j("/api/v1/accuracy?days=365")}catch(e){}
     const h=location.hash.slice(1);await selectDay(dates.includes(h)?h:dates[0]);
   }catch(e){$("err").textContent=e.message}
 })();
