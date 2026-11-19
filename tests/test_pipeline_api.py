@@ -201,9 +201,10 @@ def test_api_exports(client):
 
 def test_api_dates_accuracy_and_dashboard(client):
     assert "2026-03-02" in client.get("/api/v1/forecast/dates").json()["dates"]
-    assert "items" in client.get("/api/v1/accuracy").json()
+    acc = client.get("/api/v1/accuracy").json()
+    assert "items" in acc and all("mae_mean7d" in it for it in acc["items"])
     page = client.get("/")
-    assert page.status_code == 200 and "Forecast PZU" in page.text
+    assert page.status_code == 200 and "Prognoză preț PZU" in page.text
     assert client.get("/health").json() == {"status": "ok"}
 
 
