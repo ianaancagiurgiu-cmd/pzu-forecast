@@ -139,6 +139,23 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         days = sorted(set(pd.to_datetime(ts, utc=True).dt.tz_convert(TZ).dt.date), reverse=True)
         return {"dates": [d.isoformat() for d in days[:limit]]}
 
+    def _baseline_errors(days: list) -> dict:
+        """Eroarea medie a referintei simple (media pe 7 zile la aceeasi ora) pe zilele evaluate."""
+        if not days:
+            return {}
+        start, end = day_index(min(days))[0], day_index(max(days))[-1]
+        with engine.connect() as conn:
+            fc = pd.read_sql(select(db.price_forecast.c.timestamp, db.price_forecast.c.mean7d_price).where(
+                db.price_forecast.c.timestamp >= start.to_pydatetime(), db.price_forecast.c.timestamp <= end.to_pydatetime()), conn)
+        if fc.empty:
+            return {}
+        fc["timestamp"] = pd.to_datetime(fc["timestamp"], utc=True)
+        fc = fc.set_index("timestamp")["mean7d_price"].astype(float).sort_index()
+        actual = db.read_actual_ro(engine, fc.index)
+        err = (fc - actual.reindex(fc.index)).abs().dropna()
+        by_day = err.groupby(err.index.tz_convert(TZ).date)
+        return {d.isoformat(): _round(v.mean()) for d, v in by_day if len(v) >= 92}
+
     @app.get("/api/v1/accuracy")
     def accuracy(days: int = Query(30, ge=1, le=365)):
         acc = db.read_df(engine, db.forecast_accuracy, index=None)
@@ -148,6 +165,9 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         acc = acc[acc["forecast_date"] >= date.today() - timedelta(days=days)].sort_values("forecast_date")
         items = [{k: (v.isoformat() if isinstance(v, date) else (None if pd.isna(v) else v))
                   for k, v in r.items()} for r in acc.to_dict("records")]
+        base = _baseline_errors(acc["forecast_date"].tolist())
+        for it in items:
+            it["mae_mean7d"] = base.get(it["forecast_date"])
         late = acc[acc["on_time"] == False] if "on_time" in acc else acc.iloc[0:0]   # noqa: E712
         ok = acc.drop(late.index)
         return {"days": len(items), "mean_mae": _round(acc["mae"].mean()) if len(acc) else None,

@@ -3,137 +3,476 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Forecast PZU Romania</title>
+<title>Prognoză PZU România</title>
 <style>
-:root{--bg:#fff;--fg:#1d1d1f;--mute:#6b6b70;--line:#e3e3e6;--card:#f7f7f8;--acc:#c1121f;--band:#c1121f22;--warn:#fff3cd;--warnfg:#664d03}
-@media(prefers-color-scheme:dark){:root{--bg:#161618;--fg:#eee;--mute:#9a9aa0;--line:#2e2e33;--card:#202024;--acc:#ff6b6b;--band:#ff6b6b2a;--warn:#3a2f00;--warnfg:#ffd96a}}
-*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
-main{max-width:1040px;margin:auto;padding:16px}
-h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:26px 0 8px}
-.sub{color:var(--mute);font-size:13px}
-.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
-select,button,a.btn{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);text-decoration:none;cursor:pointer}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.kpi{background:var(--card);border-radius:8px;padding:10px 12px}.kpi b{display:block;font-size:22px}.kpi span{font-size:12px;color:var(--mute)}
-svg{width:100%;height:auto;display:block}svg text{font-size:11px;fill:var(--mute)}.grid{stroke:var(--line)}
-.tbl{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px}
-table{border-collapse:collapse;width:100%}th,td{padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-th{position:sticky;top:0;background:var(--card)}td:first-child,th:first-child{text-align:left}
-.legend span{margin-right:14px;font-size:13px}.legend i{display:inline-block;width:10px;height:10px;margin-right:4px;border-radius:2px}
-.e-ok{color:#2a9d8f;font-weight:600}.e-mid{color:#e9a100;font-weight:600}.e-bad{color:var(--acc);font-weight:600}
-.warn{background:var(--warn);color:var(--warnfg);padding:8px 12px;border-radius:6px;font-size:13px;margin-top:22px}
-#err{color:var(--acc)}
+:root{color-scheme:light;
+  --bg:#f4f4f2;--surface:#fcfcfb;--line:#e4e3df;--grid:#ecebe7;
+  --text:#0b0b0b;--text2:#52514e;--mute:#7a7975;
+  --model:#2a78d6;--band:rgba(42,120,214,.14);--real:#0b0b0b;--ref:#8f8e8a;--mix:#eb6834;
+  --cheap:rgba(42,120,214,.09);--dear:rgba(235,104,52,.10);
+  --good:#0ca30c;--goodtx:#006300;--warn:#fab219;--warntx:#7a5200;--crit:#d03b3b;
+  --div-neg:#2a78d6;--div-mid:#f0efec;--div-pos:#e34948;
+  --seq0:#cde2fb;--seq1:#104281;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04)}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;
+  --bg:#121211;--surface:#1a1a19;--line:#2e2e2b;--grid:#252523;
+  --text:#f0efec;--text2:#c3c2b7;--mute:#8f8e86;
+  --model:#3987e5;--band:rgba(57,135,229,.20);--real:#f0efec;--ref:#8f8e86;--mix:#d95926;
+  --cheap:rgba(57,135,229,.12);--dear:rgba(217,89,38,.14);
+  --goodtx:#5fd35f;--warntx:#fab219;
+  --div-neg:#3987e5;--div-mid:#383835;--div-pos:#e66767;
+  --seq0:#1c2c42;--seq1:#86b6ef;--shadow:none}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#121211;--surface:#1a1a19;--line:#2e2e2b;--grid:#252523;
+  --text:#f0efec;--text2:#c3c2b7;--mute:#8f8e86;
+  --model:#3987e5;--band:rgba(57,135,229,.20);--real:#f0efec;--ref:#8f8e86;--mix:#d95926;
+  --cheap:rgba(57,135,229,.12);--dear:rgba(217,89,38,.14);
+  --goodtx:#5fd35f;--warntx:#fab219;
+  --div-neg:#3987e5;--div-mid:#383835;--div-pos:#e66767;
+  --seq0:#1c2c42;--seq1:#86b6ef;--shadow:none}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:1180px;margin:auto;padding:16px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin:6px 0 14px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}h2{font-size:15px;margin:0}
+.sub{color:var(--text2);font-size:13px}.mute{color:var(--mute)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:14px}
+.card-h{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+button,select,a.btn{font:inherit;font-size:13px;padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--text);text-decoration:none;cursor:pointer}
+button:hover,a.btn:hover,select:hover{border-color:var(--mute)}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,a.btn:focus-visible,select:focus-visible{outline:2px solid var(--model);outline-offset:1px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 10px;background:transparent;color:var(--text2)}
+.seg button[aria-pressed="true"]{background:var(--text);color:var(--surface)}
+.status{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--text2);background:var(--surface)}
+.pill b{color:var(--text);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow)}
+.kpi .v{font-size:24px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:13px;font-weight:500;color:var(--text2);margin-left:3px}
+.kpi .l{font-size:12px;color:var(--text2)}.kpi .d{font-size:12px;color:var(--mute);margin-top:2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.legend button{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:999px;font-size:12px;color:var(--text2)}
+.legend button[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.key{display:inline-block;width:16px;height:0;border-top:2px solid}
+.key.band{height:10px;border:0;border-radius:2px}
+.chartwrap{position:relative}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-size:11px;fill:var(--mute);font-variant-numeric:tabular-nums}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:170px;max-width:240px;opacity:0;z-index:3}
+.tip .t{font-weight:600;margin-bottom:4px;color:var(--text)}
+.tip .r{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.tip .r span:first-child{display:inline-flex;align-items:center;gap:6px;color:var(--text2)}
+.tip .r b{font-variant-numeric:tabular-nums}
+.heat{display:grid;grid-template-columns:44px repeat(24,1fr);gap:2px;font-size:11px}
+.heat .c{height:26px;border-radius:3px;cursor:default;position:relative}
+.heat .c:hover,.heat .c:focus{outline:2px solid var(--text);outline-offset:-1px;z-index:1}
+.heat .lab{color:var(--mute);display:flex;align-items:center;font-variant-numeric:tabular-nums}
+.heat .hd{color:var(--mute);text-align:center;font-variant-numeric:tabular-nums}
+.scale{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-top:8px}
+.scale i{display:inline-block;width:140px;height:8px;border-radius:4px}
+.tbl{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums;white-space:nowrap}
+th{position:sticky;top:0;background:var(--surface);font-weight:600;color:var(--text2);z-index:1}
+td:first-child,th:first-child{text-align:left}
+tr.hl td{background:var(--cheap)}tr.hd td{background:var(--dear)}
+.err{display:inline-block;min-width:48px;padding:1px 6px;border-radius:4px}
+.split{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+@media (max-width:860px){.split{grid-template-columns:1fr}.heat{grid-template-columns:34px repeat(24,1fr)}.heat .hd:nth-child(odd){visibility:hidden}}
+.list{display:flex;flex-direction:column;gap:8px}
+.win{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
+.win .w{font-weight:600}.win .p{font-variant-numeric:tabular-nums;font-weight:600}
+.badge{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text2)}
+details summary{cursor:pointer;color:var(--text2);font-size:13px}
+.note{font-size:12px;color:var(--text2);border-left:3px solid var(--line);padding:4px 10px;margin:10px 0 0}
+.warn{font-size:12px;color:var(--text2);margin:18px 0 6px}
+#err{color:var(--crit);font-size:13px}
+.vt{display:grid;grid-template-columns:auto 1fr auto auto;gap:4px 12px;font-size:13px;align-items:center}
+.vt .bar{height:6px;border-radius:3px;background:var(--model);opacity:.7}
+.fade{opacity:.5;transition:opacity .15s}
 </style>
 </head>
 <body><main>
-<h1>Forecast PZU România &mdash; D+1</h1>
-<div class="sub" id="meta">Se încarcă...</div>
-<div class="bar">
-  <label>Ziua: <select id="day"></select></label>
-  <a class="btn" id="csv">Export CSV</a><a class="btn" id="xlsx">Export Excel</a>
-  <span id="err"></span>
-</div>
-<div class="kpis" id="kpis"></div>
-<h2>Preț prognozat pe 96 de intervale (EUR/MWh), cu interval de încredere 90%</h2>
-<div class="legend" id="legend"></div>
-<div id="chart"></div>
-<p class="sub">Modelul estimează mai bine nivelul prețului; media pe 7 zile și mixul sunt semnale simple, la fel de bune pentru a alege orele ieftine și scumpe (de exemplu la o baterie), conform simulărilor pe prețuri reale.</p>
-<div id="versions"></div>
-<h2>Intervale</h2>
-<div class="tbl"><table><thead><tr><th>Interval</th><th>Preț</th><th>Min 90%</th><th>Max 90%</th><th>Față de medie</th><th>Medie 7 zile</th><th>Mix 50/50</th><th>Preț real</th><th>Eroare</th></tr></thead><tbody id="rows"></tbody></table></div>
-<h2>Acuratețe: MAE zilnic, ultimele 30 de zile</h2>
-<div id="acc" class="sub"></div>
-<p class="warn">Forecast-ul este o estimare statistică și nu garantează profit; execuția, costurile și riscul de piață rămân în responsabilitatea utilizatorului.</p>
-</main>
 <script>
-const $=id=>document.getElementById(id), fmt=(v,d=1)=>Number(v).toFixed(d);
+/* Dashboard PZU: aceeasi pagina merge cu API-ul (/api/v1/...) sau autonom (window.PZU_DATA inclus la export). */
+const $=id=>document.getElementById(id);
 const STATIC=typeof window.PZU_DATA!=="undefined";
+const f1=v=>v==null||isNaN(v)?"–":Number(v).toLocaleString("ro-RO",{minimumFractionDigits:1,maximumFractionDigits:1});
+const f0=v=>v==null||isNaN(v)?"–":Math.round(v).toLocaleString("ro-RO");
+const sgn=v=>(v>0?"+":v<0?"−":"")+f1(Math.abs(v));
+const hhmm=s=>s.slice(11,16);
+const DOW=["duminică","luni","marți","miercuri","joi","vineri","sâmbătă"],MON=["ian","feb","mar","apr","mai","iun","iul","aug","sep","oct","nov","dec"];
+const niceDay=d=>{const x=new Date(d+"T12:00:00");return `${DOW[x.getDay()]}, ${x.getDate()} ${MON[x.getMonth()]} ${x.getFullYear()}`};
+const shortDay=d=>{const x=new Date(d+"T12:00:00");return `${x.getDate()} ${MON[x.getMonth()]}`};
+const addDays=(d,k)=>{const x=new Date(d+"T12:00:00");x.setDate(x.getDate()+k);return x.toISOString().slice(0,10)};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 async function j(u){
-  if(STATIC){ // pagina autonoma: datele sunt incluse in fisier
-    const D=window.PZU_DATA,url=new URL(u,"http://x"),day=url.searchParams.get("date"),p=url.pathname;
+  if(STATIC){const D=window.PZU_DATA,url=new URL(u,"http://x"),day=url.searchParams.get("date"),p=url.pathname;
     if(p.endsWith("/dates"))return {dates:D.dates};
     if(p.endsWith("/accuracy"))return D.accuracy;
     if(p.endsWith("/versions"))return (D.versions||{})[day]||{versions:[]};
-    const v=(p.endsWith("/summary")?D.summary:D.forecast)[day];if(!v)throw new Error("Nu exista forecast pentru "+day);return v;
-  }
+    const v=(p.endsWith("/summary")?D.summary:D.forecast)[day];if(!v)throw new Error("Nu există prognoză pentru "+day);return v}
   const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()}
-function csvLink(f){ // export CSV fara server
+</script>
+
+<header>
+  <div>
+    <h1>Prognoză preț PZU România</h1>
+    <div class="sub">Piața pentru ziua următoare · 96 de intervale de 15 minute · EUR/MWh</div>
+  </div>
+  <div class="nav">
+    <button id="prev" aria-label="Ziua anterioară">‹</button>
+    <select id="day" aria-label="Ziua de livrare"></select>
+    <button id="next" aria-label="Ziua următoare">›</button>
+    <a class="btn" id="csv">CSV</a><a class="btn" id="xlsx">Excel</a>
+    <button id="theme" aria-label="Schimbă tema" title="Temă luminoasă / întunecată">◐</button>
+  </div>
+</header>
+<div id="err"></div>
+
+<section class="card" aria-labelledby="dtitle">
+  <div class="card-h" style="margin-bottom:0">
+    <div><h2 id="dtitle">–</h2><div class="status" id="status"></div></div>
+  </div>
+</section>
+
+<div class="kpis" id="kpis"></div>
+
+<section class="card" aria-labelledby="ctitle">
+  <div class="card-h">
+    <h2 id="ctitle">Prețul pe parcursul zilei</h2>
+    <div class="nav">
+      <div class="seg" role="group" aria-label="Rezoluție">
+        <button data-res="15" aria-pressed="true">15 min</button><button data-res="60" aria-pressed="false">Ore</button>
+      </div>
+    </div>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="chartwrap" id="cwrap"><div id="chart"></div><div class="tip" id="tip" role="status"></div></div>
+  <p class="note" id="cnote">Banda albastră: intervalul în care prețul real ar trebui să cadă în 9 cazuri din 10. Zonele colorate pe fundal marchează cele mai ieftine și cele mai scumpe 2 ore consecutive.</p>
+</section>
+
+<div class="split">
+  <section class="card" aria-labelledby="htitle">
+    <div class="card-h">
+      <h2 id="htitle">Harta zilei</h2>
+      <div class="seg" role="group" aria-label="Ce arată harta" id="hmode">
+        <button data-m="pred" aria-pressed="true">Prognoză</button><button data-m="real" aria-pressed="false">Real</button><button data-m="err" aria-pressed="false">Eroare</button>
+      </div>
+    </div>
+    <div class="heat" id="heat"></div>
+    <div class="scale" id="hscale"></div>
+  </section>
+  <section class="card" aria-labelledby="wtitle">
+    <div class="card-h"><h2 id="wtitle">Ferestre de 2 ore</h2><span class="badge">după prognoză</span></div>
+    <div class="list" id="wins"></div>
+    <div id="versions"></div>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="atitle">
+  <div class="card-h">
+    <h2 id="atitle">Cât de bine a prognozat, zi de zi</h2>
+    <span class="sub">click pe o zi ca s-o deschizi</span>
+  </div>
+  <div class="kpis" id="akpis" style="margin-bottom:8px"></div>
+  <div class="legend" id="alegend"></div>
+  <div class="chartwrap" id="awrap"><div id="achart"></div><div class="tip" id="atip" role="status"></div></div>
+  <p class="note">Eroare medie = cu cât s-a înșelat prognoza, în medie, pe fiecare interval de 15 minute. Zilele estompate au avut prognoza făcută după închiderea pieței (13:00), deci n-ar fi putut fi folosite.</p>
+</section>
+
+<section class="card">
+  <details id="tdet"><summary>Tabel cu toate valorile</summary>
+    <div class="card-h" style="margin-top:10px"><span class="sub" id="tsub"></span></div>
+    <div class="tbl"><table><thead id="thead"></thead><tbody id="rows"></tbody></table></div>
+  </details>
+</section>
+
+<p class="warn">Prognoza este o estimare statistică și nu garantează profit; execuția, costurile și riscul de piață rămân în responsabilitatea utilizatorului. Surse: ENTSO-E (prețuri, consum), Open-Meteo (vreme). <span id="gen"></span></p>
+</main>
+
+<script>
+const S={dates:[],day:null,f:null,s:null,res:15,hmode:"pred",show:{band:true,model:true,real:true,ref:true,mix:false},acc:null};
+try{const t=localStorage.getItem("pzu-theme");if(t)document.documentElement.dataset.theme=t;
+  const sh=JSON.parse(localStorage.getItem("pzu-show")||"null");if(sh)Object.assign(S.show,sh);
+  const r=localStorage.getItem("pzu-res");if(r)S.res=+r}catch(e){}
+const save=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+
+/* ---------- date derivate ---------- */
+function series(f,res){
+  const it=f.intervals;
+  if(res===15)return it.map(x=>({t:hhmm(x.start),t2:hhmm(x.end),p:x.predicted_price,lo:x.ci_90_lower,hi:x.ci_90_upper,r:x.actual_price,m:x.mean_7d_price,x:x.blend_price}));
+  const g={};it.forEach(x=>{const h=x.start.slice(11,13);(g[h]=g[h]||[]).push(x)});
+  const avg=(a,k)=>a.some(z=>z[k]==null)?null:a.reduce((s,z)=>s+z[k],0)/a.length;
+  return Object.keys(g).map(h=>({t:h+":00",t2:String((+h+1)%24).padStart(2,"0")+":00",p:avg(g[h],"predicted_price"),lo:avg(g[h],"ci_90_lower"),hi:avg(g[h],"ci_90_upper"),r:avg(g[h],"actual_price"),m:avg(g[h],"mean_7d_price"),x:avg(g[h],"blend_price")}));
+}
+function windows(it,len=8){ // cea mai ieftina / scumpa fereastra de `len` intervale consecutive (2 ore)
+  let best=null,worst=null;
+  for(let i=0;i+len<=it.length;i++){const a=it.slice(i,i+len),m=a.reduce((s,x)=>s+x.predicted_price,0)/len;
+    const r=a.every(x=>x.actual_price!=null)?a.reduce((s,x)=>s+x.actual_price,0)/len:null;
+    if(!best||m<best.m)best={i,m,r};if(!worst||m>worst.m)worst={i,m,r}}
+  return {best,worst,len};
+}
+function onTime(day,gen){const prev=addDays(day,-1),g=gen.slice(0,10),t=gen.slice(11,16);return g<prev||(g===prev&&t<"13:00")}
+const VAR={main:["completă","toate datele: consum, vecini, vreme"],noweather:["fără vreme","prognoza de vreme nu era disponibilă"],fallback:["de rezervă","lipsea consumul vecinilor"]};
+
+/* ---------- antet + stare ---------- */
+function renderStatus(f){
+  $("dtitle").textContent=`Livrare: ${niceDay(f.date)}`;
+  const el=$("status");el.textContent="";
+  const pill=(color,label,val,title)=>{const p=document.createElement("span");p.className="pill";if(title)p.title=title;
+    if(color){const d=document.createElement("i");d.className="dot";d.style.background=color;p.append(d)}
+    p.append(label+" ");if(val){const b=document.createElement("b");b.textContent=val;p.append(b)}el.append(p)};
+  const gen=f.generated_at,ok=onTime(f.date,gen);
+  pill(ok?css("--good"):css("--crit"),ok?"✓ făcută la timp:":"✕ după închiderea pieței:",`${shortDay(gen.slice(0,10))}, ${hhmm(gen)}`,"Piața se închide la 13:00 în ziua dinaintea livrării");
+  const v=VAR[f.variant]||[f.variant||"?",""];
+  pill(f.variant==="main"?css("--good"):css("--warn"),"varianta",v[0],v[1]);
+  if(f.load_estimated)pill(css("--warn"),"preliminară:","consumul RO estimat");
+  if(f.updates>1)pill(null,"versiuni:",String(f.updates));
+  pill(null,"model",f.model_version);
+  const nr=f.intervals.filter(x=>x.actual_price!=null).length;
+  pill(nr===96||nr===f.intervals.length?css("--model"):null,nr?"preț real publicat":"preț real încă nepublicat",nr&&nr<f.intervals.length?`${nr}/${f.intervals.length}`:"");
+  $("gen").textContent=`Generat ${gen.replace("T"," ").slice(0,16)} (ora României).`;
+}
+
+/* ---------- KPI ---------- */
+function kpi(label,value,unit,detail){
+  const d=document.createElement("div");d.className="kpi";
+  const v=document.createElement("div");v.className="v";v.textContent=value;if(unit){const s=document.createElement("small");s.textContent=unit;v.append(s)}
+  const l=document.createElement("div");l.className="l";l.textContent=label;d.append(v,l);
+  if(detail){const x=document.createElement("div");x.className="d";x.textContent=detail;d.append(x)}
+  return d;
+}
+function renderKpis(f,prevF){
+  const it=f.intervals,p=it.map(x=>x.predicted_price),mean=p.reduce((a,b)=>a+b,0)/p.length;
+  const iMin=p.indexOf(Math.min(...p)),iMax=p.indexOf(Math.max(...p)),w=windows(it);
+  const hw=it.reduce((s,x)=>s+(x.ci_90_upper-x.ci_90_lower)/2,0)/it.length;
+  const el=$("kpis");el.textContent="";
+  let dPrev="";
+  if(prevF){const pr=prevF.intervals.filter(x=>x.actual_price!=null);if(pr.length===prevF.intervals.length){const m=pr.reduce((s,x)=>s+x.actual_price,0)/pr.length;dPrev=`${sgn(mean-m)} față de prețul real din ${shortDay(prevF.date)} (${f1(m)})`}}
+  const a=it.filter(x=>x.actual_price!=null),full=a.length===it.length;
+  const rm=full?a.reduce((s,x)=>s+x.actual_price,0)/a.length:null;
+  el.append(kpi("Preț mediu prognozat",f1(mean),"€/MWh",full?`real: ${f1(rm)} (${sgn(mean-rm)})`:(dPrev||null)));
+  el.append(kpi("Minim – maxim",`${f0(p[iMin])}–${f0(p[iMax])}`,"€/MWh",`la ${hhmm(it[iMin].start)} și ${hhmm(it[iMax].start)}`));
+  el.append(kpi("Diferența între ferestrele de 2 ore",f1(w.worst.m-w.best.m),"€/MWh",`ieftin ${hhmm(it[w.best.i].start)}, scump ${hhmm(it[w.worst.i].start)}`));
+  el.append(kpi("Incertitudine (interval 90%)","±"+f0(hw),"€/MWh","lățimea medie a benzii"));
+  if(full){
+    const mae=a.reduce((s,x)=>s+Math.abs(x.predicted_price-x.actual_price),0)/a.length;
+    const ref=a.every(x=>x.mean_7d_price!=null)?a.reduce((s,x)=>s+Math.abs(x.mean_7d_price-x.actual_price),0)/a.length:null;
+    const inb=a.filter(x=>x.actual_price>=x.ci_90_lower&&x.actual_price<=x.ci_90_upper).length/a.length*100;
+    el.append(kpi("Eroare medie a zilei",f1(mae),"€/MWh",ref!=null?`media pe 7 zile: ${f1(ref)} ${mae<=ref?"(modelul mai bun)":"(media mai bună)"}`:null));
+    el.append(kpi("Real în banda de 90%",f0(inb),"%","ținta: 90%"));
+  }
+}
+
+/* ---------- grafic principal ---------- */
+const SER=[{k:"band",n:"Interval 90%",c:"--band",band:1},{k:"model",n:"Prognoză",c:"--model"},{k:"real",n:"Preț real",c:"--real"},{k:"ref",n:"Media 7 zile",c:"--ref",dash:"5 4"},{k:"mix",n:"Mix 50/50",c:"--mix",dash:"2 3"}];
+function niceTicks(lo,hi,n=5){const sp=hi-lo||1,step0=sp/n,mag=10**Math.floor(Math.log10(step0)),st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=step0);
+  const a=Math.floor(lo/st)*st,b=Math.ceil(hi/st)*st,t=[];for(let v=a;v<=b+1e-9;v+=st)t.push(+v.toFixed(6));return t}
+function renderLegend(d){
+  const el=$("legend");el.textContent="";
+  SER.forEach(s=>{
+    if(s.k==="real"&&!d.some(x=>x.r!=null))return;
+    if((s.k==="ref"&&!d.some(x=>x.m!=null))||(s.k==="mix"&&!d.some(x=>x.x!=null)))return;
+    const b=document.createElement("button");b.setAttribute("aria-pressed",String(!!S.show[s.k]));
+    const k=document.createElement("i");k.className="key"+(s.band?" band":"");
+    if(s.band)k.style.background=css(s.c);else{k.style.borderTopColor=css(s.c);if(s.dash)k.style.borderTopStyle="dashed"}
+    b.append(k,s.n);b.onclick=()=>{S.show[s.k]=!S.show[s.k];save("pzu-show",JSON.stringify(S.show));drawMain()};el.append(b)});
+}
+function drawMain(){
+  const f=S.f;if(!f)return;const d=series(f,S.res),n=d.length;renderLegend(d);
+  const W=Math.max(320,$("cwrap").clientWidth||1000),H=W<640?250:340,L=40,R=8,T=12,B=28,pw=W-L-R,ph=H-T-B;
+  const vals=[];d.forEach(x=>{if(S.show.model)vals.push(x.p);if(S.show.band){vals.push(x.lo,x.hi)}if(S.show.real&&x.r!=null)vals.push(x.r);if(S.show.ref&&x.m!=null)vals.push(x.m);if(S.show.mix&&x.x!=null)vals.push(x.x)});
+  if(!vals.length)d.forEach(x=>vals.push(x.p));
+  let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.06||10;lo-=pad;hi+=pad;
+  const ticks=niceTicks(lo,hi);lo=Math.min(lo,ticks[0]);hi=Math.max(hi,ticks[ticks.length-1]);
+  const step=pw/n,sx=i=>L+step*(i+.5),sy=v=>T+(hi-v)/(hi-lo)*ph;
+  const NS="http://www.w3.org/2000/svg",svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",`Prețul prognozat pentru ${f.date}, ${n} intervale`);
+  const add=(tag,at,txt)=>{const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;svg.append(e);return e};
+  // ferestre ieftina / scumpa (2 ore)
+  const w=windows(f.intervals),per=S.res===15?1:4;
+  [[w.best,"--cheap","cea mai ieftină"],[w.worst,"--dear","cea mai scumpă"]].forEach(([z,c,lab])=>{const x0=L+step*(z.i/per),x1=L+step*((z.i+w.len)/per);
+    add("rect",{x:x0,y:T,width:x1-x0,height:ph,fill:css(c)});add("text",{x:(x0+x1)/2,y:T+12,"text-anchor":"middle",style:"font-size:10px"},lab)});
+  ticks.forEach(v=>{add("line",{x1:L,x2:W-R,y1:sy(v),y2:sy(v),stroke:css("--grid")});add("text",{x:L-8,y:sy(v)+4,"text-anchor":"end"},f0(v))});
+  for(let h=0;h<=24;h+=(W<640?6:3)){const i=h*(S.res===15?4:1),x=L+step*i;add("line",{x1:x,x2:x,y1:T+ph,y2:T+ph+4,stroke:css("--line")});add("text",{x,y:H-10,"text-anchor":"middle"},String(h).padStart(2,"0")+":00")}
+  if(S.show.band){const up=d.map((x,i)=>`${sx(i)},${sy(x.hi)}`).join(" "),dn=d.map((x,i)=>`${sx(i)},${sy(x.lo)}`).reverse().join(" ");add("polygon",{points:up+" "+dn,fill:css("--band")})}
+  const line=(k,c,wd,dash)=>{const pts=d.map((x,i)=>x[k]==null?null:`${sx(i)},${sy(x[k])}`);if(pts.every(p=>p==null))return;
+    let seg=[],out=[];pts.forEach(p=>{if(p)seg.push(p);else if(seg.length){out.push(seg);seg=[]}});if(seg.length)out.push(seg);
+    out.forEach(s=>add("polyline",{points:s.join(" "),fill:"none",stroke:css(c),"stroke-width":wd,"stroke-linejoin":"round","stroke-linecap":"round",...(dash?{"stroke-dasharray":dash}:{})}))};
+  if(S.show.ref)line("m","--ref",1.5,"5 4");if(S.show.mix)line("x","--mix",1.5,"2 3");
+  if(S.show.real)line("r","--real",2);if(S.show.model)line("p","--model",2.4);
+  // crosshair + tooltip
+  const cross=add("line",{x1:0,x2:0,y1:T,y2:T+ph,stroke:css("--text2"),"stroke-width":1,opacity:0});
+  const dots=["p","r"].map(k=>add("circle",{r:4.5,fill:css(k==="p"?"--model":"--real"),stroke:css("--surface"),"stroke-width":2,opacity:0}));
+  const hit=add("rect",{x:L,y:T,width:pw,height:ph,fill:"transparent",tabindex:0,"aria-label":"Explorează valorile cu săgețile"});
+  const tip=$("tip"),wrap=$("cwrap");let cur=-1;
+  const show=i=>{if(i<0||i>=n)return;cur=i;const x=d[i],X=sx(i);cross.setAttribute("x1",X);cross.setAttribute("x2",X);cross.setAttribute("opacity",.5);
+    [["p",dots[0],S.show.model],["r",dots[1],S.show.real]].forEach(([k,dt,on])=>{if(on&&x[k]!=null){dt.setAttribute("cx",X);dt.setAttribute("cy",sy(x[k]));dt.setAttribute("opacity",1)}else dt.setAttribute("opacity",0)});
+    tip.textContent="";const t=document.createElement("div");t.className="t";t.textContent=`${x.t}–${x.t2}`;tip.append(t);
+    const row=(c,name,val,dash)=>{const r=document.createElement("div");r.className="r";const a=document.createElement("span");const k=document.createElement("i");k.className="key";k.style.borderTopColor=css(c);if(dash)k.style.borderTopStyle="dashed";a.append(k,name);const b=document.createElement("b");b.textContent=val;r.append(a,b);tip.append(r)};
+    row("--model","Prognoză",f1(x.p));row("--band","Interval 90%",`${f0(x.lo)} – ${f0(x.hi)}`);
+    if(x.r!=null){row("--real","Preț real",f1(x.r));row("--text2","Eroare",sgn(x.p-x.r))}
+    if(x.m!=null&&S.show.ref)row("--ref","Media 7 zile",f1(x.m),1);if(x.x!=null&&S.show.mix)row("--mix","Mix 50/50",f1(x.x),1);
+    const bb=wrap.getBoundingClientRect(),px=X/W*bb.width;tip.style.opacity=1;
+    const tw=tip.offsetWidth;tip.style.left=Math.min(Math.max(px+14,0),bb.width-tw)+"px";if(px+14+tw>bb.width)tip.style.left=Math.max(px-tw-14,0)+"px";tip.style.top="8px"};
+  const hide=()=>{tip.style.opacity=0;cross.setAttribute("opacity",0);dots.forEach(x=>x.setAttribute("opacity",0))};
+  hit.addEventListener("pointermove",e=>{const bb=svg.getBoundingClientRect(),x=(e.clientX-bb.left)/bb.width*W;show(Math.max(0,Math.min(n-1,Math.floor((x-L)/step))))});
+  hit.addEventListener("pointerleave",hide);hit.addEventListener("blur",hide);
+  hit.addEventListener("focus",()=>show(cur<0?0:cur));
+  hit.addEventListener("keydown",e=>{if(e.key==="ArrowRight"){show(Math.min(n-1,cur+1));e.preventDefault()}if(e.key==="ArrowLeft"){show(Math.max(0,cur-1));e.preventDefault()}});
+  $("chart").replaceChildren(svg);
+  document.querySelectorAll("[data-res]").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.res===S.res)));
+}
+
+/* ---------- harta zilei (4 sferturi x 24 ore) ---------- */
+function mix(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),A=p(a),B=p(b);return "#"+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,"0")).join("")}
+function renderHeat(){
+  const f=S.f,it=f.intervals,el=$("heat");el.textContent="";
+  const hasR=it.every(x=>x.actual_price!=null);
+  document.querySelectorAll("#hmode button").forEach(b=>{const m=b.dataset.m;b.disabled=(m!=="pred"&&!hasR);b.setAttribute("aria-pressed",String(m===S.hmode))});
+  if(S.hmode!=="pred"&&!hasR)S.hmode="pred";
+  const val=x=>S.hmode==="pred"?x.predicted_price:S.hmode==="real"?x.actual_price:x.predicted_price-x.actual_price;
+  const vs=it.map(val);let lo=Math.min(...vs),hi=Math.max(...vs);
+  if(S.hmode!=="err"&&hasR){const all=it.flatMap(x=>[x.predicted_price,x.actual_price]);lo=Math.min(...all);hi=Math.max(...all)} // aceeasi scala pt prognoza si real
+  const M=Math.max(Math.abs(lo),Math.abs(hi))||1;
+  const color=v=>S.hmode==="err"?(v<0?mix(css("--div-mid"),css("--div-neg"),Math.min(1,-v/M)):mix(css("--div-mid"),css("--div-pos"),Math.min(1,v/M))):mix(css("--seq0"),css("--seq1"),(v-lo)/((hi-lo)||1));
+  const blank=document.createElement("div");el.append(blank);
+  for(let h=0;h<24;h++){const c=document.createElement("div");c.className="hd";c.textContent=String(h).padStart(2,"0");el.append(c)}
+  const byKey={};it.forEach(x=>{byKey[hhmm(x.start)]=(byKey[hhmm(x.start)]||[]).concat([x])});
+  ["00","15","30","45"].forEach(q=>{const lab=document.createElement("div");lab.className="lab";lab.textContent=":"+q;el.append(lab);
+    for(let h=0;h<24;h++){const k=String(h).padStart(2,"0")+":"+q,xs=byKey[k]||[],c=document.createElement("div");c.className="c";
+      if(xs.length){const x=xs[0],v=val(x);c.style.background=color(v);c.tabIndex=0;
+        c.title=`${k}  prognoză ${f1(x.predicted_price)}`+(x.actual_price!=null?` · real ${f1(x.actual_price)} · eroare ${sgn(x.predicted_price-x.actual_price)}`:"")+` · interval ${f0(x.ci_90_lower)}–${f0(x.ci_90_upper)} €/MWh`}
+      else c.style.background="transparent";el.append(c)}});
+  const sc=$("hscale");sc.textContent="";
+  const a=document.createElement("span"),bar=document.createElement("i"),b=document.createElement("span");
+  if(S.hmode==="err"){a.textContent=`prognoză sub real (−${f0(M)})`;bar.style.background=`linear-gradient(90deg,${css("--div-neg")},${css("--div-mid")},${css("--div-pos")})`;b.textContent=`peste real (+${f0(M)})`}
+  else{a.textContent=f0(lo);bar.style.background=`linear-gradient(90deg,${css("--seq0")},${css("--seq1")})`;b.textContent=f0(hi)+" €/MWh"}
+  sc.append(a,bar,b);
+}
+
+/* ---------- ferestre + versiuni ---------- */
+function renderWindows(){
+  const it=S.f.intervals,w=windows(it),el=$("wins");el.textContent="";
+  const card=(z,lab,bg)=>{const c=document.createElement("div");c.className="win";c.style.background=css(bg);
+    const l=document.createElement("div");const t=document.createElement("div");t.className="w";t.textContent=`${hhmm(it[z.i].start)}–${hhmm(it[z.i+w.len-1].end)}`;
+    const s=document.createElement("div");s.className="sub";s.textContent=lab;l.append(t,s);
+    const r=document.createElement("div");r.style.textAlign="right";const p=document.createElement("div");p.className="p";p.textContent=f1(z.m)+" €/MWh";
+    const s2=document.createElement("div");s2.className="sub";s2.textContent=z.r!=null?`real: ${f1(z.r)}`:"prognozat";r.append(p,s2);c.append(l,r);el.append(c)};
+  card(w.best,"cea mai ieftină (ex. încărcare baterie, consum flexibil)","--cheap");
+  card(w.worst,"cea mai scumpă (ex. descărcare baterie, vânzare)","--dear");
+  const sp=document.createElement("div");sp.className="sub";sp.textContent=`Diferență: ${f1(w.worst.m-w.best.m)} €/MWh`+(w.best.r!=null&&w.worst.r!=null?` · realizată la prețurile reale: ${f1(w.worst.r-w.best.r)}`:"");el.append(sp);
+}
+async function renderVersions(day){
+  const el=$("versions");el.textContent="";
+  try{const v=(await j(`/api/v1/forecast/pzu/versions?date=${day}`)).versions||[];if(v.length<2)return;
+    const h=document.createElement("h2");h.textContent="Versiunile prognozei";h.style.margin="16px 0 8px";el.append(h);
+    const g=document.createElement("div");g.className="vt";const mx=Math.max(...v.map(x=>x.mean_price));
+    v.forEach(x=>{const ok=onTime(day,x.generated_at);const a=document.createElement("div");a.textContent=`${shortDay(x.generated_at.slice(0,10))} ${hhmm(x.generated_at)}`;if(!ok)a.className="mute";
+      const bw=document.createElement("div");const bar=document.createElement("div");bar.className="bar";bar.style.width=(x.mean_price/mx*100)+"%";bw.append(bar);
+      const c=document.createElement("div");c.className="badge";c.textContent=(VAR[x.variant]||[x.variant])[0];
+      const d=document.createElement("div");d.style.fontVariantNumeric="tabular-nums";d.textContent=f1(x.mean_price)+(x.mae!=null?` · eroare ${f1(x.mae)}`:"");g.append(a,bw,c,d)});
+    el.append(g);
+  }catch(e){}
+}
+
+/* ---------- tabel ---------- */
+function renderTable(){
+  const f=S.f,d=series(f,S.res),hasR=d.some(x=>x.r!=null),w=windows(f.intervals),per=S.res===15?1:4;
+  $("tsub").textContent=S.res===15?"96 de intervale de 15 minute":"24 de ore (media celor 4 sferturi)";
+  const th=["Interval","Prognoză","Min 90%","Max 90%","Media 7 zile","Mix 50/50"].concat(hasR?["Real","Eroare"]:[]);
+  const tr=document.createElement("tr");th.forEach(t=>{const e=document.createElement("th");e.textContent=t;tr.append(e)});$("thead").replaceChildren(tr);
+  const rows=d.map((x,i)=>{const r=document.createElement("tr");const q=i*per;
+    if(q>=w.best.i&&q<w.best.i+w.len)r.className="hl";if(q>=w.worst.i&&q<w.worst.i+w.len)r.className="hd";
+    [`${x.t}–${x.t2}`,f1(x.p),f0(x.lo),f0(x.hi),f1(x.m),f1(x.x)].concat(hasR?[f1(x.r),null]:[]).forEach((v,k)=>{const c=document.createElement("td");
+      if(v===null&&x.r!=null){const e=x.p-x.r,s=document.createElement("span");s.className="err";s.textContent=sgn(e);
+        const M=60,t=Math.min(1,Math.abs(e)/M);s.style.background=mix(css("--div-mid"),css(e<0?"--div-neg":"--div-pos"),t*.7);c.append(s)}else c.textContent=v??"–";r.append(c)});return r});
+  $("rows").replaceChildren(...rows);
+}
+
+/* ---------- acuratete ---------- */
+function renderAccuracy(a){
+  const el=$("akpis");el.textContent="";const items=a.items||[];
+  if(!items.length){$("achart").textContent="Încă nu există zile evaluate.";return}
+  const ok=items.filter(x=>x.on_time!==false),mean=(xs,k)=>{const v=xs.map(x=>x[k]).filter(v=>v!=null);return v.length?v.reduce((s,z)=>s+z,0)/v.length:null};
+  const m7=mean(items,"mae"),r7=mean(items,"mae_mean7d"),last7=items.slice(-7);
+  el.append(kpi("Eroare medie, ultimele zile",f1(m7),"€/MWh",`${items.length} zile evaluate`+(r7!=null?` · media 7 zile: ${f1(r7)}`:"")));
+  el.append(kpi("Ultimele 7 zile",f1(mean(last7,"mae")),"€/MWh",r7!=null?`media 7 zile: ${f1(mean(last7,"mae_mean7d"))}`:null));
+  el.append(kpi("Real în banda de 90%",f0(100*mean(items,"coverage_90")),"%","ținta: 90%"));
+  el.append(kpi("Prognoze făcute la timp",`${ok.length}/${items.length}`,"",ok.length<items.length&&mean(ok,"mae")!=null?`eroare doar pe cele la timp: ${f1(mean(ok,"mae"))}`:"înainte de 13:00"));
+  const lg=$("alegend");lg.textContent="";
+  [["Eroarea prognozei","--model",0],["Eroarea mediei pe 7 zile (referință)","--ref",1]].forEach(([n,c,ln])=>{if(ln&&r7==null)return;const s=document.createElement("span");s.className="pill";const k=document.createElement("i");k.className=ln?"key":"key band";if(ln){k.style.borderTopColor=css(c);k.style.borderTopStyle="dashed"}else k.style.background=css(c);s.append(k,n);lg.append(s)});
+  const W=Math.max(320,$("awrap").clientWidth||1000),H=W<640?190:230,L=40,R=8,T=12,B=28,pw=W-L-R,ph=H-T-B,n=items.length,step=pw/n;
+  const hi=Math.max(...items.map(x=>Math.max(x.mae||0,x.mae_mean7d||0)))*1.08,ticks=niceTicks(0,hi,4),top=ticks[ticks.length-1];
+  const sy=v=>T+(top-v)/top*ph,NS="http://www.w3.org/2000/svg",svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");svg.setAttribute("aria-label","Eroarea medie zilnică");
+  const add=(tag,at,txt,parent=svg)=>{const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;parent.append(e);return e};
+  ticks.forEach(v=>{add("line",{x1:L,x2:W-R,y1:sy(v),y2:sy(v),stroke:css("--grid")});add("text",{x:L-8,y:sy(v)+4,"text-anchor":"end"},f0(v))});
+  const bw=Math.max(2,Math.min(22,step-4)),tip=$("atip"),wrap=$("awrap");
+  items.forEach((x,i)=>{const cx=L+step*(i+.5),late=x.on_time===false,sel=x.forecast_date===S.day;
+    const g=add("g",{tabindex:0,role:"button","aria-label":`${x.forecast_date}: eroare ${f1(x.mae)}`,style:"cursor:pointer"});
+    add("rect",{x:cx-step/2,y:T,width:step,height:ph,fill:"transparent"},null,g);
+    const h=Math.max(1,sy(0)-sy(x.mae));
+    add("rect",{x:cx-bw/2,y:sy(x.mae),width:bw,height:h,rx:Math.min(4,bw/2),fill:css("--model"),opacity:late?.35:1,stroke:sel?css("--text"):"none","stroke-width":sel?2:0},null,g);
+    const on=()=>{tip.textContent="";const t=document.createElement("div");t.className="t";t.textContent=niceDay(x.forecast_date);tip.append(t);
+      const row=(n,v)=>{const r=document.createElement("div");r.className="r";const a=document.createElement("span");a.textContent=n;const b=document.createElement("b");b.textContent=v;r.append(a,b);tip.append(r)};
+      row("Eroare prognoză",f1(x.mae));if(x.mae_mean7d!=null)row("Eroare media 7 zile",f1(x.mae_mean7d));row("Real în banda de 90%",f0(100*x.coverage_90)+"%");
+      row("Făcută",x.on_time===false?"după închidere":x.on_time?"la timp":"–");
+      const bb=wrap.getBoundingClientRect(),px=cx/W*bb.width;tip.style.opacity=1;const tw=tip.offsetWidth;tip.style.left=Math.min(Math.max(px-tw/2,0),bb.width-tw)+"px";tip.style.top="0px"};
+    g.addEventListener("pointerenter",on);g.addEventListener("focus",on);g.addEventListener("pointerleave",()=>tip.style.opacity=0);g.addEventListener("blur",()=>tip.style.opacity=0);
+    const go=()=>{if(S.dates.includes(x.forecast_date))selectDay(x.forecast_date)};g.addEventListener("click",go);g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){go();e.preventDefault()}});
+    if(i%Math.ceil(n/(W<640?5:12))===0||i===n-1)add("text",{x:cx,y:H-10,"text-anchor":"middle"},shortDay(x.forecast_date))});
+  const pts=items.map((x,i)=>x.mae_mean7d==null?null:`${L+step*(i+.5)},${sy(x.mae_mean7d)}`).filter(Boolean);
+  if(pts.length>1)add("polyline",{points:pts.join(" "),fill:"none",stroke:css("--ref"),"stroke-width":1.6,"stroke-dasharray":"5 4","pointer-events":"none"});
+  $("achart").replaceChildren(svg);
+}
+
+/* ---------- navigare ---------- */
+async function selectDay(day){
+  S.day=day;$("day").value=day;$("err").textContent="";
+  const i=S.dates.indexOf(day);$("prev").disabled=i>=S.dates.length-1;$("next").disabled=i<=0;
+  document.querySelectorAll(".card,.kpis").forEach(e=>e.classList.add("fade"));
+  try{
+    const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
+    let prevF=null;const pd=addDays(day,-1);if(S.dates.includes(pd)){try{prevF=await j(`/api/v1/forecast/pzu?date=${pd}`)}catch(e){}}
+    S.f=f;S.s=s;
+    if(STATIC){$("csv").href=csvLink(f);$("csv").download=`prognoza_pzu_${day}.csv`;$("xlsx").style.display="none"}
+    else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
+    renderStatus(f);renderKpis(f,prevF);drawMain();renderHeat();renderWindows();renderTable();renderVersions(day);
+    if(S.acc)renderAccuracy(S.acc);
+    try{history.replaceState(null,"","#"+day)}catch(e){}
+  }catch(e){$("err").textContent=e.message}
+  document.querySelectorAll(".fade").forEach(e=>e.classList.remove("fade"));
+}
+function csvLink(f){
   const rows=["start,predicted_price,ci_90_lower,ci_90_upper,mean_7d_price,blend_price,actual_price",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper,x.mean_7d_price??"",x.blend_price??"",x.actual_price??""].join(","))];
   return URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
 }
-const hhmm=s=>s.slice(11,16);
-function chart(el,series,opts){ // series: [{y:[],lo:[],hi:[],color,bars}]
-  const W=1000,H=300,P=44,all=series.flatMap(s=>[...s.y,...(s.lo||[]),...(s.hi||[])]);
-  let lo=Math.min(...all,0),hi=Math.max(...all);const sp=(hi-lo)||1,n=series[0].y.length;
-  const sx=i=>P+i*(W-2*P)/Math.max(n-1,1),sy=v=>H-P-(v-lo)/sp*(H-2*P);
-  let g=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${opts.label}">`;
-  for(let k=0;k<=4;k++){const v=lo+sp*k/4;g+=`<line class="grid" x1="${P}" x2="${W-P}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${P-6}" y="${sy(v)+4}" text-anchor="end">${v.toFixed(0)}</text>`}
-  (opts.ticks||[]).forEach(([i,t])=>{g+=`<text x="${sx(i)}" y="${H-P+16}" text-anchor="middle">${t}</text>`});
-  series.forEach(s=>{
-    if(s.lo){const up=s.hi.map((v,i)=>`${sx(i)},${sy(v)}`).join(" "),dn=s.lo.map((v,i)=>`${sx(i)},${sy(v)}`).reverse().join(" ");g+=`<polygon points="${up} ${dn}" fill="var(--band)"/>`}
-    if(s.bars){const w=(W-2*P)/n*0.7;s.y.forEach((v,i)=>{g+=`<rect x="${sx(i)-w/2}" y="${Math.min(sy(v),sy(0))}" width="${w}" height="${Math.abs(sy(v)-sy(0))}" fill="${s.color}"><title>${opts.titles[i]}: ${fmt(v)}</title></rect>`})}
-    else g+=`<polyline fill="none" stroke="${s.color}" stroke-width="${s.w||2}" ${s.dash?`stroke-dasharray="${s.dash}"`:""} points="${s.y.map((v,i)=>`${sx(i)},${sy(v)}`).join(" ")}"/>`;
-  });
-  el.innerHTML=g+"</svg>";
-}
-async function renderVersions(day){
-  try{
-    const v=(await j(`/api/v1/forecast/pzu/versions?date=${day}`)).versions||[];
-    if(!v.length){$("versions").innerHTML="";return}
-    $("versions").innerHTML=`<h2>Versiuni ale prognozei</h2><div class="tbl"><table><thead><tr><th>Ora (RO)</th><th>Varianta</th><th>Model</th><th>Preț mediu</th><th>Eroare model</th><th>Eroare mix</th></tr></thead><tbody>`+
-      v.map(x=>`<tr><td>${x.generated_at.slice(11,16)}</td><td>${x.variant==="main"?"completă":x.variant==="noweather"?"fără vreme":"de rezervă"}</td><td>${x.model_version}</td><td>${fmt(x.mean_price)}</td><td>${x.mae==null?"–":fmt(x.mae)}</td><td>${x.mae_mix==null?"–":fmt(x.mae_mix)}</td></tr>`).join("")+`</tbody></table></div>`;
-  }catch(e){$("versions").innerHTML=""}
-}
-function errCell(x){
-  if(x.actual_price==null)return "–";
-  const e=x.predicted_price-x.actual_price,a=Math.abs(e),c=a<20?"e-ok":a<40?"e-mid":"e-bad";
-  return `<span class="${c}">${(e>=0?"+":"")+fmt(e)}</span>`;
-}
-function dayAccuracy(it){
-  const a=it.filter(x=>x.actual_price!=null);
-  if(a.length<it.length)return "";
-  const errs=a.map(x=>Math.abs(x.predicted_price-x.actual_price));
-  const mae=errs.reduce((s,v)=>s+v,0)/errs.length,ok=errs.filter(v=>v<20).length/errs.length*100;
-  const inb=a.filter(x=>x.actual_price>=x.ci_90_lower&&x.actual_price<=x.ci_90_upper).length/a.length*100;
-  return [["Eroare medie (zi)",fmt(mae)],["Intervale cu eroare sub 20",fmt(ok,0)+"%"],["Preț real în interval 90%",fmt(inb,0)+"%"]];
-}
-async function load(day){
-  $("err").textContent="";
-  try{
-    const [f,s]=await Promise.all([j(`/api/v1/forecast/pzu?date=${day}`),j(`/api/v1/forecast/pzu/summary?date=${day}`)]);
-    $("meta").textContent=`Generat: ${f.generated_at.replace("T"," ").slice(0,16)} · model ${f.model_version}`+
-      (f.variant?` · varianta ${f.variant==="main"?"completă":f.variant==="noweather"?"fără prognoza de vreme":"de rezervă (fără consumul vecinilor)"}`:"")+(f.load_estimated?" · preliminară: consumul României estimat din săptămâna trecută":"")+(f.updates>1?` · ${f.updates} versiuni`:"");
-    renderVersions(day);
-    if(STATIC){$("csv").href=csvLink(f);$("csv").download=`forecast_pzu_${day}.csv`;$("xlsx").style.display="none"}
-    else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
-    $("kpis").innerHTML=[["Preț mediu",fmt(s.mean)],["Minim",fmt(s.min)],["Maxim",fmt(s.max)],["Spread zilnic",fmt(s.spread)],
-      ["Ore sub 30 EUR/MWh",fmt(s.hours_below_30)],["Ore peste 150 EUR/MWh",fmt(s.hours_above_150)],...(dayAccuracy(f.intervals)||[])].map(([a,b])=>`<div class="kpi"><b>${b}</b><span>${a}</span></div>`).join("");
-    const it=f.intervals,ticks=it.map((x,i)=>[i,hhmm(x.start)]).filter(([i])=>i%12==0);
-    const hasRef=it.every(x=>x.mean_7d_price!=null&&x.blend_price!=null);
-    const ser=[{y:it.map(x=>x.predicted_price),lo:it.map(x=>x.ci_90_lower),hi:it.map(x=>x.ci_90_upper),color:"var(--acc)"}];
-    let leg=`<span><i style="background:var(--acc)"></i>Model (cu interval 90%)</span>`;
-    if(hasRef){ser.push({y:it.map(x=>x.mean_7d_price),color:"#4c78a8",w:1.4,dash:"5 3"},{y:it.map(x=>x.blend_price),color:"#f2a900",w:1.4});
-      leg+=`<span><i style="background:#4c78a8"></i>Medie 7 zile</span><span><i style="background:#f2a900"></i>Mix 50/50</span>`}
-    const act=it.filter(x=>x.actual_price!=null);
-    if(act.length===it.length){ser.push({y:it.map(x=>x.actual_price),color:"#111",w:1.6});leg+=`<span><i style="background:#111"></i>Preț real</span>`}
-    $("legend").innerHTML=leg;
-    chart($("chart"),ser,{label:"Forecast PZU",ticks});
-    $("rows").innerHTML=it.map(x=>`<tr><td>${hhmm(x.start)}–${hhmm(x.end)}</td><td>${fmt(x.predicted_price)}</td><td>${fmt(x.ci_90_lower)}</td><td>${fmt(x.ci_90_upper)}</td><td>${(x.predicted_price-s.mean>=0?"+":"")+fmt(x.predicted_price-s.mean)}</td><td>${x.mean_7d_price==null?"–":fmt(x.mean_7d_price)}</td><td>${x.blend_price==null?"–":fmt(x.blend_price)}</td><td>${x.actual_price==null?"–":fmt(x.actual_price)}</td><td>${errCell(x)}</td></tr>`).join("");
-  }catch(e){$("err").textContent=e.message}
-}
-async function acc(){
-  const a=await j("/api/v1/accuracy?days=30");
-  if(!a.items.length){$("acc").textContent="Încă nu există zile evaluate (evaluarea rulează zilnic după publicarea rezultatelor oficiale).";return}
-  $("acc").innerHTML=`MAE mediu: <b>${fmt(a.mean_mae)}</b> EUR/MWh pe ${a.days} zile`+
-    (a.late_days?` · ${a.late_days} ${a.late_days==1?"zi cu prognoză făcută":"zile cu prognoza făcută"} după închiderea pieței (fără ${a.late_days==1?"ea":"ele"}: ${fmt(a.mean_mae_on_time)})`:"")+
-    (a.mean_coverage!=null?` · intervalul de 90% a prins prețul în ${Math.round(100*a.mean_coverage)}% din intervale`:"");
-  const d=document.createElement("div");$("acc").appendChild(d);
-  chart(d,[{y:a.items.map(x=>x.mae),color:"var(--acc)",bars:true}],{label:"MAE zilnic",titles:a.items.map(x=>x.forecast_date),ticks:a.items.map((x,i)=>[i,x.forecast_date.slice(5)]).filter((_,i)=>i%5==0)});
-}
+document.querySelectorAll("[data-res]").forEach(b=>b.onclick=()=>{S.res=+b.dataset.res;save("pzu-res",S.res);drawMain();renderTable()});
+document.querySelectorAll("#hmode button").forEach(b=>b.onclick=()=>{S.hmode=b.dataset.m;renderHeat()});
+$("prev").onclick=()=>{const i=S.dates.indexOf(S.day);if(i<S.dates.length-1)selectDay(S.dates[i+1])};
+$("next").onclick=()=>{const i=S.dates.indexOf(S.day);if(i>0)selectDay(S.dates[i-1])};
+$("day").onchange=e=>selectDay(e.target.value);
+$("theme").onclick=()=>{const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  const nx=cur==="dark"?"light":"dark";document.documentElement.dataset.theme=nx;save("pzu-theme",nx);if(S.f)selectDay(S.day)};
+document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest("input,select,textarea,[tabindex]"))return;
+  if(e.key==="ArrowLeft")$("prev").click();if(e.key==="ArrowRight")$("next").click()});
+let rt,lw=innerWidth;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{if(innerWidth===lw)return;lw=innerWidth;$("tip").style.opacity=0;if(S.f)drawMain();if(S.acc)renderAccuracy(S.acc)},150)});
 (async()=>{
-  const {dates}=await j("/api/v1/forecast/dates");
-  if(!dates.length){$("meta").textContent="Nu există încă niciun forecast generat.";return}
-  $("day").innerHTML=dates.map(d=>`<option>${d}</option>`).join("");
-  $("day").onchange=e=>load(e.target.value);load(dates[0]);acc();
+  try{
+    const {dates}=await j("/api/v1/forecast/dates");S.dates=dates;
+    if(!dates.length){$("dtitle").textContent="Nu există încă nicio prognoză.";return}
+    const sel=$("day");sel.textContent="";dates.forEach(d=>{const o=document.createElement("option");o.value=d;o.textContent=`${shortDay(d)} · ${DOW[new Date(d+"T12:00:00").getDay()]}`;sel.append(o)});
+    try{S.acc=await j("/api/v1/accuracy?days=45")}catch(e){}
+    const h=location.hash.slice(1);await selectDay(dates.includes(h)?h:dates[0]);
+  }catch(e){$("err").textContent=e.message}
 })();
-</script></body></html>
+</script>
+</body></html>
