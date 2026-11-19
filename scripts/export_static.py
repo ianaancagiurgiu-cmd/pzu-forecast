@@ -17,6 +17,11 @@ def build_data(client: TestClient, days: int) -> dict:
     dates = client.get(f"/api/v1/forecast/dates?limit={days}").json()["dates"]
     data = {"dates": dates, "forecast": {}, "summary": {}, "versions": {},
             "accuracy": client.get("/api/v1/accuracy?days=365").json()}
+    data["region_daily"] = client.get("/api/v1/region/daily?days=120").json()
+    data["insights_recent"] = client.get(f"/api/v1/insights/recent?days={max(days, 60)}").json()
+    region_days = sorted(set(dates) | set(data["region_daily"]["dates"][-60:]))
+    data["region"] = {d: client.get(f"/api/v1/region/prices?date={d}").json() for d in region_days}
+    data["insights"] = {x["date"]: x for x in data["insights_recent"]["days"]}
     for d in dates:
         data["forecast"][d] = client.get(f"/api/v1/forecast/pzu?date={d}").json()
         data["summary"][d] = client.get(f"/api/v1/forecast/pzu/summary?date={d}").json()

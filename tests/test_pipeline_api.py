@@ -208,6 +208,14 @@ def test_api_dates_accuracy_and_dashboard(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_api_region_and_insights_endpoints(client):
+    r = client.get("/api/v1/region/prices", params={"date": "2026-03-02"}).json()
+    assert r["zones"][0]["code"] == "RO" and len(r["times"]) == 96 and len(r["prices"]["RO"]) == 96
+    assert "means" in client.get("/api/v1/region/daily", params={"days": 30}).json()
+    assert "events" in client.get("/api/v1/insights", params={"date": "2026-03-02"}).json()
+    assert "days" in client.get("/api/v1/insights/recent", params={"days": 3}).json()
+
+
 def test_api_includes_benchmarks(client):
     body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
     first = body["intervals"][0]

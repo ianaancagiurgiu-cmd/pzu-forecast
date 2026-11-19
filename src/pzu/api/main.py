@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
-from pzu import db
+from pzu import db, insights
 from pzu.config import TZ
 from pzu.timegrid import day_index
 
@@ -173,6 +173,56 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         return {"days": len(items), "mean_mae": _round(acc["mae"].mean()) if len(acc) else None,
                 "late_days": int(len(late)), "mean_mae_on_time": _round(ok["mae"].mean()) if len(ok) else None,
                 "mean_coverage": _round(acc["coverage_90"].mean()) if len(acc) else None, "items": items}
+
+    @app.get("/api/v1/region/prices")
+    def region_prices(date: date):
+        """Preturile oficiale ale Romaniei si ale vecinilor pentru o zi (dupa publicare), pe 15 minute."""
+        idx = day_index(date)
+        p = insights.region_prices(engine, idx[0], idx[-1]).reindex(idx)
+        zones = [z for z in insights.ZONES if z in p and p[z].notna().any()]
+        return {"date": date.isoformat(), "times": [_iso(ts)[11:16] for ts in idx],
+                "zones": [{"code": z, "name": insights.ZONE_NAMES[z]} for z in zones],
+                "prices": {z: [None if pd.isna(v) else round(float(v), 2) for v in p[z]] for z in zones},
+                "daily_mean": {z: _round(p[z].mean()) for z in zones}}
+
+    @app.get("/api/v1/region/daily")
+    def region_daily(days: int = Query(90, ge=7, le=730)):
+        """Pretul mediu zilnic al fiecarei zone, ultimele `days` zile."""
+        end = pd.Timestamp.now(tz=TZ).normalize() + pd.Timedelta(days=2)
+        p = insights.region_prices(engine, (end - pd.Timedelta(days=days + 2)).tz_convert("UTC"), end.tz_convert("UTC"))
+        if p.empty:
+            return {"dates": [], "zones": [], "means": {}}
+        d = p.groupby(p.index.tz_convert(TZ).date)
+        mean, n = d.mean(), d.count()
+        mean = mean[n["RO"] >= 92] if "RO" in n else mean
+        mean = mean.tail(days)
+        zones = [z for z in insights.ZONES if z in mean]
+        return {"dates": [x.isoformat() for x in mean.index],
+                "zones": [{"code": z, "name": insights.ZONE_NAMES[z]} for z in zones],
+                "means": {z: [None if pd.isna(v) else round(float(v), 1) for v in mean[z]] for z in zones}}
+
+    def _mae(day) -> float | None:
+        acc = db.read_df(engine, db.forecast_accuracy, index=None)
+        if acc.empty:
+            return None
+        row = acc[pd.to_datetime(acc["forecast_date"]).dt.date == day]
+        return None if row.empty else float(row["mae"].iloc[0])
+
+    @app.get("/api/v1/insights")
+    def day_insights(date: date):
+        """Situatii neobisnuite ale zilei si posibile explicatii (dupa publicarea preturilor oficiale)."""
+        return {"date": date.isoformat(), "events": insights.day_events(engine, date, forecast_mae=_mae(date))}
+
+    @app.get("/api/v1/insights/recent")
+    def recent_insights(days: int = Query(30, ge=1, le=120)):
+        today = pd.Timestamp.now(tz=TZ).date()
+        out = []
+        for k in range(-1, days):
+            d = today - timedelta(days=k)
+            ev = insights.day_events(engine, d, forecast_mae=_mae(d))
+            if ev:
+                out.append({"date": d.isoformat(), "events": ev})
+        return {"days": out}
 
     @app.get("/")
     def index():
