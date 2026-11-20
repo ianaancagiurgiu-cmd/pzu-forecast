@@ -277,3 +277,19 @@ regenerabile (pe zone și pe regiune) și ponderea regenerabilelor:
 
 Nici producția reală, cunoscută perfect, nu mai aduce un câștig semnificativ: vremea din toată Europa (v3) conține deja
 informația pe care ar aduce-o producția (testul similar din octombrie, pe modelul fără vreme, dădea −10%).
+
+## Capacitatea disponibilă: centralele oprite (`scripts/outage_experiment.py`, 400 de zile): neadoptat
+Indisponibilitățile anunțate pe ENTSO-E (A80; RO 544, HU 8.163, BG 425, RS 687 documente pe ~26 de luni), doar cele
+create până la 06:00 în ziua dinainte, ultima revizie, fără cele anulate; MW indisponibili pe zone și tipuri (total,
+nuclear, hidro, termic, neplanificat). În medie: RO ~534 MW, BG ~856, HU ~244, RS ~198.
+
+| Variantă | MAE | Ultimele 30 de zile | Câștig față de v3 |
+|---|---|---|---|
+| v3 (în producție) | 23,33 | 33,20 | – |
+| + indisponibilități România | 23,43 | 33,16 | −0,10 ± 0,18 |
+| + indisponibilități RO, HU, BG, RS | 23,48 | 34,75 | −0,15 ± 0,24 |
+| limită: tot ce s-a aflat ulterior | 23,22 | 32,79 | +0,11 ± 0,33 |
+
+Nicio variantă nu e semnificativă. Prețurile din zilele trecute (din România și din regiune), pe care modelul le are
+deja, reflectă în mare parte capacitatea scoasă din funcțiune; o oprire nouă și mare, anunțată de pe o zi pe alta, e rară.
+Capacitatea interconexiunilor (flow-based, JAO) nu a fost testată.
