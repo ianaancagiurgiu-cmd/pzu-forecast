@@ -1,0 +1,24 @@
+name: Fetch region production
+# Productia reala eoliana/solara + prognoza de consum pe zone (test vreme -> productie -> pret). Doar manual.
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        zone: [RO, DE, PL, HU, AT, CZ, BG]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - run: python scripts/fetch_region_production.py ${{ matrix.zone }} --months 25
+      - run: gh release upload data-latest prod_${{ matrix.zone }}.csv --clobber
