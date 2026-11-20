@@ -261,3 +261,19 @@ semnificativ: gazul TTF (+0,14 ± 0,31, negativ în prima jumătate), variabile 
 (+0,34 ± 0,44), frunze 15/63, minim 100 pe frunză, 50% din coloane, ritm 0,03 – neadoptate.
 Alertă: `python -m pzu.pipeline check` (cod 3 = lipsește prognoza de mâine); workflow-ul `Daily forecast` deschide un
 issue „Prognoza lipseste” la rulările de dinaintea închiderii pieței și îl închide când prognoza apare.
+
+## Test în doi pași: vreme → producție → preț (`scripts/two_stage_experiment.py`, 400 de zile): neadoptat
+Pasul 1 estimează din prognoza de vreme producția eoliană și solară pe zone (RO, DE, PL, HU, AT, CZ, BG; producția reală
+ENTSO-E pe 25 de luni, `Fetch region production`), out-of-sample în timp. Corelații estimare/real (orar): solar 0,94–0,98,
+eolian 0,91 DE, 0,76–0,79 RO/PL/BG, 0,46–0,56 AT/HU/CZ. Pasul 2 adaugă modelului v3 producția estimată, consumul minus
+regenerabile (pe zone și pe regiune) și ponderea regenerabilelor:
+
+| Variantă | MAE | Ultimele 30 de zile | Intervale corecte (±20% sau ±20 €) | Câștig față de v3 |
+|---|---|---|---|---|
+| v3 (în producție) | 23,33 | 33,20 | 74,2% | – |
+| + producție estimată România | 23,57 | 34,03 | 73,5% | −0,24 ± 0,26 |
+| + producție estimată regiune | 23,51 | 34,12 | 73,7% | −0,18 ± 0,36 |
+| + producție REALĂ regiune (limită superioară) | 23,20 | 33,94 | 73,9% | +0,13 ± 0,44 |
+
+Nici producția reală, cunoscută perfect, nu mai aduce un câștig semnificativ: vremea din toată Europa (v3) conține deja
+informația pe care ar aduce-o producția (testul similar din octombrie, pe modelul fără vreme, dădea −10%).
