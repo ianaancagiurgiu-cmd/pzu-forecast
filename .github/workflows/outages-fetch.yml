@@ -1,0 +1,23 @@
+name: Fetch outages
+# Indisponibilitatile centralelor (ENTSO-E A80/A77) pe zone, pentru testul cu capacitatea disponibila. Doar manual.
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        zone: [RO, HU, BG, RS]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - run: python scripts/fetch_outages_csv.py ${{ matrix.zone }} --months 26
+      - run: gh release upload data-latest outages_${{ matrix.zone }}.csv --clobber
