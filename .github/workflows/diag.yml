@@ -1,0 +1,19 @@
+name: Diagnostic preturi
+# Cate intervale publica ENTSO-E pentru fiecare zona (doar manual).
+on:
+  workflow_dispatch:
+    inputs:
+      days: { description: "Zile (YYYY-MM-DD, separate prin spatiu)", type: string, default: "2026-11-19 2026-11-20 2026-11-21" }
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ENTSOE_TOKEN: ${{ secrets.ENTSOE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - run: pip list 2>/dev/null | grep -i -E "^(entsoe-py|pandas) "
+      - run: python scripts/diag_prices.py ${{ inputs.days }}
