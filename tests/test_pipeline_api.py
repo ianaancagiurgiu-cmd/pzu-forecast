@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from pzu import db, model as M, pipeline
 from pzu.api.main import create_app
-from pzu.ingest import openmeteo
+from pzu.ingest import opcom, openmeteo
 from pzu.synthetic import generate
 from pzu.timegrid import day_index
 
@@ -36,6 +36,7 @@ def env(tmp_path_factory):
     mp = pytest.MonkeyPatch()
     mp.setattr(openmeteo, "fetch_weather", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
     mp.setattr(openmeteo, "fetch_europe", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
+    mp.setattr(opcom, "fetch_market_results", lambda *a, **k: pd.DataFrame(columns=opcom.COLS))
     mp.setitem(M.PARAMS, "n_estimators", 40)
     path = tmp_path_factory.mktemp("db") / "p.db"
     eng = db.get_engine(f"sqlite:///{path}")
@@ -85,9 +86,18 @@ def test_evaluate_writes_accuracy(env):
 
 
 def test_evaluate_not_ready_when_prices_unpublished(env):
-    eng, _ = env
-    with pytest.raises(pipeline.NotReady):
-        pipeline.evaluate(eng, OfflineClient(), DAY, force=True)
+    eng, ro = env
+    from sqlalchemy import delete
+    idx = day_index(DAY)
+    with eng.begin() as conn:                     # nici ENTSO-E, nici baza de date, nici OPCOM nu au pretul zilei
+        conn.execute(delete(db.prices_actual).where(db.prices_actual.c.zone == "RO", db.prices_actual.c.timestamp >= idx[0].to_pydatetime(),
+                                                    db.prices_actual.c.timestamp <= idx[-1].to_pydatetime()))
+    try:
+        with pytest.raises(pipeline.NotReady):
+            pipeline.evaluate(eng, OfflineClient(), DAY, force=True)
+    finally:                                      # DB-ul e comun modulului: refacem preturile
+        back = pd.DataFrame({"timestamp": idx, "zone": "RO", "price_eur_mwh": ro.reindex(idx).to_numpy(), "source": "ENTSOE"})
+        db.upsert_df(eng, db.prices_actual, back, ["timestamp", "zone"])
 
 
 def test_evaluate_missed_catches_up_past_days(env):

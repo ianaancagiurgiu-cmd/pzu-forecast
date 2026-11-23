@@ -293,3 +293,11 @@ nuclear, hidro, termic, neplanificat). În medie: RO ~534 MW, BG ~856, HU ~244, 
 Nicio variantă nu e semnificativă. Prețurile din zilele trecute (din România și din regiune), pe care modelul le are
 deja, reflectă în mare parte capacitatea scoasă din funcțiune; o oprire nouă și mare, anunțată de pe o zi pe alta, e rară.
 Capacitatea interconexiunilor (flow-based, JAO) nu a fost testată.
+
+## OPCOM ca sursă de rezervă pentru prețul României (`src/pzu/ingest/opcom.py`)
+În 20–22 nov 2026 ENTSO-E nu a publicat prețurile RO (și HU, DE, HR, SK, GR) pentru ~48 de ore. Fără prețurile zilelor
+anterioare, prognoza pentru 22 nov a ieșit 148 în loc de ~202 EUR/MWh. Acum, la fiecare rulare, intervalele RO lipsă se
+completează din raportul public OPCOM „Rezultate cuplare PZU” (`rapoarte-pzu-raportMarketResults-export-csv`, fără cont):
+preț RO în EUR/MWh pe 15 minute, numerotat în ora pieței (CET), plus fluxurile RO↔HU, RO↔BG și ATC pe granița RO–BG
+(tabelul `opcom_results`). Nu se suprascrie nimic din ENTSO-E (`source = OPCOM`). Validat pe 19 nov: 96/96 intervale
+identice. Evaluarea folosește și ea OPCOM dacă ENTSO-E e incomplet.

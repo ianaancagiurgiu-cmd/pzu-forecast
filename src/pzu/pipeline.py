@@ -22,7 +22,7 @@ import pandas as pd
 from pzu import backtest, db, features as F, metrics, model as M, weather as W
 from pzu.config import NEIGHBORS, REGION_ZONES, TZ, get_settings
 from pzu.conformal import ConformalInterval
-from pzu.ingest import entsoe, openmeteo
+from pzu.ingest import entsoe, opcom, openmeteo
 from pzu.timegrid import day_index
 
 log = logging.getLogger("pipeline")
@@ -50,6 +50,34 @@ def _long(wide: pd.DataFrame) -> pd.DataFrame:
     return long
 
 
+def fill_ro_from_opcom(engine, days) -> int:
+    """Completeaza preturile RO lipsa (ENTSO-E nu le-a publicat) cu cele oficiale de la OPCOM. Nu suprascrie nimic.
+    Ziua locala D acopera zilele de piata (CET) D-1 si D, deci se cer doar zilele de piata cu intervale lipsa."""
+    want = []
+    for d in days:
+        idx = day_index(d)
+        have = db.read_actual_ro(engine, idx)
+        missing = have[have.isna()].index
+        if len(missing):
+            want.extend(missing)
+    if not want:
+        return 0
+    missing = pd.DatetimeIndex(want)
+    filled = 0
+    for mday in sorted(set(missing.tz_convert(opcom.MARKET_TZ).date)):
+        res = opcom.fetch_market_results(mday)
+        if res.empty:
+            continue
+        db.upsert_df(engine, db.opcom_results, res.reset_index(), ["timestamp"])
+        p = res["price_eur"].reindex(missing).dropna()
+        if len(p):
+            long = pd.DataFrame({"timestamp": p.index, "zone": "RO", "price_eur_mwh": p.to_numpy(), "source": "OPCOM"})
+            filled += db.upsert_df(engine, db.prices_actual, long, ["timestamp", "zone"])
+    if filled:
+        log.info("OPCOM: %d preturi RO completate", filled)
+    return filled
+
+
 def ingest_recent(engine, client, through_day: date, lookback_days: int = 10) -> None:
     """Aduce in DB ultimele zile de preturi + forecast-urile pana la `through_day` inclusiv.
     Nu suprascrie niciodata o valoare existenta cu lipsa (merge)."""
@@ -62,6 +90,11 @@ def ingest_recent(engine, client, through_day: date, lookback_days: int = 10) ->
         prices = pd.concat([prices, *region], axis=1)
     if not prices.empty:
         db.upsert_df(engine, db.prices_actual, _long(prices.dropna(how="all")), ["timestamp", "zone"])
+    try:   # rezerva: preturile RO pe care ENTSO-E nu le-a publicat, de la OPCOM (pana la ziua de maine, publicata la 13:00)
+        last = min(pd.Timestamp(through_day).date(), local_today() + timedelta(days=1))
+        fill_ro_from_opcom(engine, pd.date_range(start, last, freq="D").date)
+    except Exception as exc:
+        log.warning("OPCOM indisponibil: %s", exc)
     for z in NEIGHBORS:   # prognoza de consum D+1 a vecinilor
         nl = entsoe.fetch_load_forecast(client, start, end, zone=z)
         if len(nl):
@@ -319,6 +352,13 @@ def evaluate(engine, client, day: date | None = None, force: bool = False,
         raise NotReady(f"Nu exista forecast complet pentru {day}")
     actual = entsoe.fetch_prices(client, "RO", pd.Timestamp(day), pd.Timestamp(day) + pd.Timedelta(days=1))
     actual = actual.reindex(idx)
+    if actual.isna().any():   # ENTSO-E incomplet: completam de la OPCOM (sursa oficiala)
+        try:
+            db.upsert_df(engine, db.prices_actual, _long(actual.dropna().to_frame("RO")), ["timestamp", "zone"])
+            fill_ro_from_opcom(engine, [day])
+            actual = actual.fillna(db.read_actual_ro(engine, idx))
+        except Exception as exc:
+            log.warning("OPCOM indisponibil: %s", exc)
     if actual.isna().any():
         raise NotReady(f"Preturile oficiale pentru {day} nu sunt (complet) publicate")
     db.upsert_df(engine, db.prices_actual, _long(actual.to_frame("RO")), ["timestamp", "zone"])

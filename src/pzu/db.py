@@ -90,6 +90,16 @@ neighbor_load = Table(
     Column("load_forecast_mw", Float),
 )
 
+# Rezultatele PZU publicate de OPCOM (rezerva cand ENTSO-E nu publica): pret RO, fluxuri si capacitati RO-HU/RO-BG
+opcom_results = Table(
+    "opcom_results", metadata,
+    Column("timestamp", TS, primary_key=True),
+    Column("price_eur", Float),
+    Column("flow_ro_hu", Float), Column("flow_hu_ro", Float),
+    Column("flow_ro_bg", Float), Column("flow_bg_ro", Float),
+    Column("atc_ro_bg", Float), Column("atc_bg_ro", Float),
+)
+
 # Vreme (prognoza D+1 / prognoze arhivate) pe puncte din Europa, orar UTC; vezi pzu.weather
 weather_fc = Table(
     "weather_fc", metadata,
