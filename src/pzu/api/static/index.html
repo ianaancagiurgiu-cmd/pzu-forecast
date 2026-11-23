@@ -87,6 +87,8 @@ tr.hl td{background:var(--cheap)}tr.hd td{background:var(--dear)}
 .list{display:flex;flex-direction:column;gap:8px}
 .win{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
 .win .w{font-weight:600}.win .p{font-variant-numeric:tabular-nums;font-weight:600}
+.bstrip{display:grid;grid-template-columns:repeat(96,1fr);gap:1px;height:34px}.bstrip i{display:block;border-radius:2px;background:var(--line)}
+.bscale{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:3px}
 .badge{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text2)}
 details summary{cursor:pointer;color:var(--text2);font-size:13px}
 .note{font-size:12px;color:var(--text2);border-left:3px solid var(--line);padding:4px 10px;margin:10px 0 0}
@@ -133,6 +135,7 @@ async function j(u){
     if(p.endsWith("/region/daily"))return D.region_daily||{dates:[],zones:[]};
     if(p.endsWith("/region/prices")){const v=(D.region||{})[day];if(!v)throw new Error("Nu am prețurile regiunii pentru "+day);return v}
     if(p.endsWith("/insights/recent"))return D.insights_recent||{days:[]};
+    if(p.endsWith("/battery")){const v=(D.battery||{})[day];if(!v)throw new Error("Nu am programul bateriei pentru "+day);return v}
     if(p.endsWith("/insights"))return (D.insights||{})[day]||{date:day,events:[]};
     const v=(p.endsWith("/summary")?D.summary:D.forecast)[day];if(!v)throw new Error("Nu există prognoză pentru "+day);return v}
   const r=await fetch(u);if(!r.ok)throw new Error((await r.json()).detail||r.status);return r.json()}
@@ -213,6 +216,19 @@ async function j(u){
     <div id="versions"></div>
   </section>
 </div>
+
+<section class="card" aria-labelledby="btitle">
+  <div class="card-h">
+    <div><h2 id="btitle">Mod baterie</h2><div class="sub" id="bsub">când ar încărca și descărca o baterie de referință, după semnalul optimizat pentru baterie</div></div>
+    <span class="badge">10 MW / 20 MWh · randament 85% · 1 ciclu/zi</span>
+  </div>
+  <div class="legend" style="margin-bottom:6px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--model);margin-right:5px"></i>încarcă (cumpără)</span> <span style="margin-left:12px"><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--mix);margin-right:5px"></i>descarcă (vinde)</span> <span style="margin-left:12px;color:var(--text2)">gri: stă</span></div>
+  <div class="bstrip" id="bstrip" aria-label="Programul bateriei pe 96 de intervale"></div>
+  <div class="bscale"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+  <div class="list" id="bwins" style="margin-top:10px"></div>
+  <div class="kpis" id="bkpis" style="margin-top:10px;margin-bottom:0"></div>
+  <p class="note">Semnalul de baterie păstrează nivelul prețului din prognoză, dar ia „forma zilei” (ce ore sunt mai ieftine și mai scumpe) ca medie din trei estimări. Pe 399 de zile testate a adus 82,8% din câștigul maxim posibil, față de 81,7% dacă bateria urmează direct prognoza și 80,7% dacă urmează media pe 7 zile (≈ +32 €/zi, respectiv +60 €/zi pentru bateria de referință). Câștigul e calculat după randament și un cost de uzură de 4 €/MWh.</p>
+</section>
 
 <section class="card" aria-labelledby="atitle">
   <div class="card-h">
@@ -434,6 +450,32 @@ async function renderVersions(day){
   }catch(e){}
 }
 
+/* ---------- baterie ---------- */
+async function renderBattery(day){
+  const st=$("bstrip"),wl=$("bwins"),kp=$("bkpis");st.textContent="";wl.textContent="";kp.textContent="";
+  let b;try{b=await j(`/api/v1/battery?date=${day}`)}catch(e){wl.textContent="Programul bateriei nu e disponibil pentru această zi.";return}
+  const mx=b.battery.power_mw;
+  b.times.forEach((t,i)=>{const c=b.charge_mw[i],d=b.discharge_mw[i],e=document.createElement("i");
+    if(c>0.01){e.style.background=css("--model");e.style.opacity=0.4+0.6*c/mx;e.title=`${t} încarcă ${f1(c)} MW`}
+    else if(d>0.01){e.style.background=css("--mix");e.style.opacity=0.4+0.6*d/mx;e.title=`${t} descarcă ${f1(d)} MW`}
+    else e.title=`${t} stă`;st.append(e)});
+  const row=(w,lab,bg)=>{const c=document.createElement("div");c.className="win";c.style.background=css(bg);
+    const l=document.createElement("div"),t=document.createElement("div");t.className="w";t.textContent=`${w.start}–${w.end}`;
+    const s=document.createElement("div");s.className="sub";s.textContent=lab;l.append(t,s);
+    const r=document.createElement("div");r.style.textAlign="right";const p=document.createElement("div");p.className="p";p.textContent=`${f1(w.mw)} MW`;
+    const s2=document.createElement("div");s2.className="sub";s2.textContent=`semnal ${f1(w.signal_price)} €/MWh`;r.append(p,s2);c.append(l,r);wl.append(c)};
+  b.charge.forEach(w=>row(w,"încarcă","--cheap"));b.discharge.forEach(w=>row(w,"descarcă","--dear"));
+  if(!b.charge.length)wl.textContent="Ziua nu merită un ciclu: diferența dintre ore nu acoperă pierderile și uzura.";
+  const k=(lab,val,sub)=>{const d=document.createElement("div");d.className="kpi";const a=document.createElement("div");a.className="l";a.textContent=lab;
+    const v=document.createElement("div");v.className="v";v.textContent=val;const s=document.createElement("div");s.className="d";s.textContent=sub;d.append(a,v,s);kp.append(d)};
+  k("Câștig estimat",`${f0(b.expected_revenue)} €`,"după prețurile prognozate");
+  if(b.actual){const a=b.actual;
+    k("Câștig realizat",`${f0(a.revenue)} €`,"programul de mai sus, la prețurile reale");
+    k("Maximul posibil",`${f0(a.perfect)} €`,a.pct_of_perfect!=null?`realizat ${f0(a.pct_of_perfect)}% din maxim`:"știind dinainte prețurile reale");
+    if(a.mean7d_plan!=null)k("Dacă urma media 7 zile",`${f0(a.mean7d_plan)} €`,(a.revenue-a.mean7d_plan>=0?"semnalul a câștigat cu ":"semnalul a pierdut ")+f0(Math.abs(a.revenue-a.mean7d_plan))+" €")}
+  else k("Rezultat real","–","apare după publicarea prețurilor oficiale");
+}
+
 /* ---------- tabel ---------- */
 function renderTable(){
   const f=S.f,d=series(f,S.res),hasR=d.some(x=>x.r!=null),w=windows(f.intervals),per=S.res===15?1:4;
@@ -618,7 +660,7 @@ async function selectDay(day){
     S.f=f;S.s=s;
     if(STATIC){$("csv").href=csvLink(f);$("csv").download=`prognoza_pzu_${day}.csv`;$("xlsx").style.display="none"}
     else{$("csv").href=`/api/v1/forecast/pzu/export?date=${day}&format=csv`;$("xlsx").href=`/api/v1/forecast/pzu/export?date=${day}&format=xlsx`}
-    renderStatus(f);renderKpis(f,prevF);drawMain();renderHeat();renderWindows();renderTable();renderVersions(day);
+    renderStatus(f);renderKpis(f,prevF);drawMain();renderHeat();renderWindows();renderTable();renderVersions(day);renderBattery(day);
     $("events").textContent="";loadRegion(day);
     if(S.acc)renderAccuracy(S.acc);
     try{history.replaceState(null,"","#"+day)}catch(e){}
@@ -626,7 +668,7 @@ async function selectDay(day){
   document.querySelectorAll(".fade").forEach(e=>e.classList.remove("fade"));
 }
 function csvLink(f){
-  const rows=["start,predicted_price,ci_90_lower,ci_90_upper,mean_7d_price,blend_price,actual_price",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper,x.mean_7d_price??"",x.blend_price??"",x.actual_price??""].join(","))];
+  const rows=["start,predicted_price,ci_90_lower,ci_90_upper,mean_7d_price,blend_price,battery_price,actual_price",...f.intervals.map(x=>[x.start,x.predicted_price,x.ci_90_lower,x.ci_90_upper,x.mean_7d_price??"",x.blend_price??"",x.battery_price??"",x.actual_price??""].join(","))];
   return URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
 }
 document.querySelectorAll("[data-res]").forEach(b=>b.onclick=()=>{S.res=+b.dataset.res;save("pzu-res",S.res);drawMain();renderTable()});

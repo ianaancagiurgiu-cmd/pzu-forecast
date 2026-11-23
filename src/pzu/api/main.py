@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.engine import Engine
 
-from pzu import db, insights
+from pzu import db, insights, value as V
 from pzu.config import TZ
 from pzu.timegrid import day_index
 
@@ -70,6 +70,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
                  "predicted_price": _round(r.predicted_price),
                  "ci_90_lower": _round(r.ci_lower), "ci_90_upper": _round(r.ci_upper),
                  "mean_7d_price": _opt(r, "mean7d_price"), "blend_price": _opt(r, "blend_price"),
+                 "battery_price": _opt(r, "battery_price"),
                  "actual_price": None if pd.isna(actual.get(ts)) else round(float(actual.get(ts)), 2)}
                 for ts, r in fc.iterrows()
             ],
@@ -119,6 +120,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             "diff_vs_daily_mean": (fc["predicted_price"] - fc["predicted_price"].mean()).round(2).to_numpy(),
             "mean_7d_price": fc["mean7d_price"].round(2).to_numpy() if "mean7d_price" in fc else None,
             "blend_price": fc["blend_price"].round(2).to_numpy() if "blend_price" in fc else None,
+            "battery_price": fc["battery_price"].round(2).to_numpy() if "battery_price" in fc else None,
         })
         name = f"forecast_pzu_{date}"
         if format == "csv":
@@ -173,6 +175,45 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         return {"days": len(items), "mean_mae": _round(acc["mae"].mean()) if len(acc) else None,
                 "late_days": int(len(late)), "mean_mae_on_time": _round(ok["mae"].mean()) if len(ok) else None,
                 "mean_coverage": _round(acc["coverage_90"].mean()) if len(acc) else None, "items": items}
+
+    @app.get("/api/v1/battery")
+    def battery(date: date):
+        """Programul unei baterii de referinta (10 MW / 20 MWh, randament 85%, 1 ciclu/zi) dupa semnalul de baterie;
+        dupa publicarea pretului oficial: castigul realizat, castigul maxim si cel al unei programari dupa media pe 7 zile."""
+        fc = load_day(date)
+        b = V.Battery()
+        sig_col = "battery_price" if "battery_price" in fc and fc["battery_price"].notna().all() else "predicted_price"
+        sig = fc[sig_col].to_numpy(dtype=float)
+        c, d = V.dispatch(sig, b)
+        times = [_iso(ts)[11:16] for ts in fc.index]
+        def windows(x):
+            out, start = [], None
+            for i, v in enumerate(list(x) + [0.0]):
+                if v > 0.01 and start is None:
+                    start = i
+                if v <= 0.01 and start is not None:
+                    end = i
+                    out.append({"start": times[start], "end": times[end] if end < len(times) else "24:00",
+                                "mw": _round(max(x[start:end])), "signal_price": _round(sig[start:end].mean())})
+                    start = None
+            return out
+        res = {"date": date.isoformat(), "signal": sig_col,
+               "battery": {"power_mw": b.power_mw, "energy_mwh": b.energy_mwh, "round_trip_eff": b.round_trip_eff,
+                           "cycles_per_day": b.max_cycles_per_day, "cost_per_mwh": b.cost_per_mwh},
+               "times": times, "charge_mw": [round(float(v), 2) for v in c], "discharge_mw": [round(float(v), 2) for v in d],
+               "charge": windows(c), "discharge": windows(d),
+               "expected_revenue": _round(V.battery_revenue(c, d, sig, b)), "actual": None}
+        actual = db.read_actual_ro(engine, fc.index)
+        if actual.notna().all():
+            a = actual.to_numpy(dtype=float)
+            pc, pdis = V.dispatch(a, b)
+            row = {"revenue": _round(V.battery_revenue(c, d, a, b)), "perfect": _round(V.battery_revenue(pc, pdis, a, b))}
+            if "mean7d_price" in fc and fc["mean7d_price"].notna().all():
+                mc, md = V.dispatch(fc["mean7d_price"].to_numpy(dtype=float), b)
+                row["mean7d_plan"] = _round(V.battery_revenue(mc, md, a, b))
+            row["pct_of_perfect"] = _round(100 * row["revenue"] / row["perfect"]) if row["perfect"] > 0 else None
+            res["actual"] = row
+        return res
 
     @app.get("/api/v1/region/prices")
     def region_prices(date: date):

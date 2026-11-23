@@ -41,6 +41,7 @@ price_forecast = Table(
     Column("ci_upper", Float),
     Column("mean7d_price", Float),   # referinta simpla: media pe 7 zile la aceeasi ora
     Column("blend_price", Float),    # mix 50/50 model + media pe 7 zile
+    Column("battery_price", Float),  # semnal pentru programarea bateriei (nivel + forma zilei), vezi model.battery_signal
     Column("model_version", String(20)),
     Column("features_used", JSON),
 )
@@ -51,7 +52,7 @@ forecast_history = Table(
     Column("generated_at", TS, primary_key=True),
     Column("timestamp", TS, primary_key=True),
     Column("predicted_price", Float), Column("ci_lower", Float), Column("ci_upper", Float),
-    Column("mean7d_price", Float), Column("blend_price", Float),
+    Column("mean7d_price", Float), Column("blend_price", Float), Column("battery_price", Float),
     Column("model_version", String(20)), Column("variant", String(10)), Column("inputs_hash", String(20)),
 )
 

@@ -139,3 +139,23 @@ def test_pair_model_averages_level_and_change_from_yesterday(data):
     gap = X.copy()
     gap[M.LAG_COL] = np.nan                                                       # fara pretul de ieri: doar modelul de nivel
     assert np.allclose(pm.predict(gap), pm.level.predict(gap[cols]))
+
+
+def test_battery_signal_keeps_level_and_averages_shapes():
+    idx = pd.date_range("2026-06-01 21:00", periods=96, freq="15min", tz="UTC")
+    pred = pd.Series(100.0 + np.sin(np.arange(96) / 10) * 10, index=idx)
+    shape = pd.Series(np.cos(np.arange(96) / 10) * 5, index=idx)
+    m7 = pd.Series(80.0 + np.arange(96) * 0.1, index=idx)
+    s = M.battery_signal(pred, shape, m7)
+    assert s.mean() == pytest.approx(pred.mean())                   # nivelul zilei vine din model
+    expected = pred.mean() + ((pred - pred.mean()) + (shape - shape.mean()) + (m7 - m7.mean())) / 3
+    assert np.allclose(s, expected)
+    assert np.allclose(M.battery_signal(pred, None, None), pred)    # fara alte semnale = prognoza
+
+
+def test_fit_shape_learns_daily_profile(data):
+    _, _, X, y = data
+    m = M.fit_shape(X, y, cols=list(F.BASE_PRODUCTION_FEATURES), **FAST)
+    p = pd.Series(m.predict(X[list(F.BASE_PRODUCTION_FEATURES)]), index=X.index)
+    day = pd.Series(X.index.tz_convert("Europe/Bucharest").date, index=X.index)
+    assert abs(p.groupby(day).mean()).mean() < 0.25 * p.abs().mean() + 1   # prezice abateri in jurul lui 0

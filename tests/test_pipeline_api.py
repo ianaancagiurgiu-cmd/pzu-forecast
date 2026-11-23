@@ -226,6 +226,17 @@ def test_api_region_and_insights_endpoints(client):
     assert "days" in client.get("/api/v1/insights/recent", params={"days": 3}).json()
 
 
+def test_api_battery_plan(client):
+    b = client.get("/api/v1/battery", params={"date": "2026-03-02"}).json()
+    assert b["signal"] == "battery_price"                            # semnalul de baterie e salvat odata cu prognoza
+    assert len(b["charge_mw"]) == 96 and b["battery"]["energy_mwh"] == 20.0
+    charged = sum(b["charge_mw"]) * 0.25
+    assert charged <= 20.0 / 0.85 ** 0.5 + 1e-6                    # un ciclu pe zi, cel mult capacitatea
+    assert b["charge"] and b["discharge"] and b["expected_revenue"] >= 0
+    if b["actual"]:
+        assert b["actual"]["revenue"] <= b["actual"]["perfect"] + 1e-6
+
+
 def test_api_includes_benchmarks(client):
     body = client.get("/api/v1/forecast/pzu", params={"date": "2026-03-02"}).json()
     first = body["intervals"][0]

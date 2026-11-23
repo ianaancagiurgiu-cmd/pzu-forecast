@@ -35,7 +35,7 @@ def fit(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, sample_wei
 
 
 WINDOW_DAYS = 365       # fereastra de antrenare (audit nov 2026: 60 -> 365 zile, MAE 26,3 -> 24,0)
-CONFIG = "pair365-v1"   # daca se schimba, modelul salvat se reantreneaza complet la urmatoarea rulare
+CONFIG = "pair365-v2"   # daca se schimba, modelul salvat se reantreneaza complet (v2: + modelul de forma pentru baterie)
 LAG_COL = "price_lag_24h"
 
 
@@ -75,6 +75,27 @@ def fit_pair(X: pd.DataFrame, y: pd.Series, cols: list[str] | None = None, sampl
     return PairModel(level, delta, cols)
 
 
+def fit_shape(X: pd.DataFrame, y: pd.Series, cols: list[str], **overrides) -> lgb.LGBMRegressor:
+    """Modelul de "forma a zilei": invata abaterea fiecarui interval fata de media zilei (ce ore sunt mai ieftine/scumpe),
+    nu nivelul. Folosit doar pentru semnalul de baterie."""
+    day = pd.Series(X.index.tz_convert("Europe/Bucharest").date, index=X.index)
+    target = y - y.groupby(day).transform("mean")
+    return fit(X, target, cols, **overrides)
+
+
+def battery_signal(pred: pd.Series, shape_pred: pd.Series | None, mean7d: pd.Series | None) -> pd.Series:
+    """Semnalul pentru programarea unei baterii: nivelul zilei din model + media a trei estimari ale formei zilei
+    (modelul de pret, modelul de forma, ultimele 7 zile). Walk-forward pe 399 de zile, baterie 10 MW / 20 MWh:
+    82,8% din castigul maxim, fata de 81,7% (modelul) si 80,7% (media pe 7 zile), +32 EUR/zi fata de model (README)."""
+    lvl = pred.mean()
+    shapes = [pred - lvl]
+    if shape_pred is not None and shape_pred.notna().all():
+        shapes.append(shape_pred - shape_pred.mean())
+    if mean7d is not None and mean7d.notna().all():
+        shapes.append(mean7d - mean7d.mean())
+    return lvl + sum(shapes) / len(shapes)
+
+
 @dataclass
 class ModelBundle:
     model: lgb.LGBMRegressor
@@ -89,6 +110,8 @@ class ModelBundle:
     nowx_model: lgb.LGBMRegressor | None = None          # fara vreme: folosit daca prognoza de vreme lipseste
     nowx_features: list[str] | None = None
     config: str | None = None                            # vezi CONFIG
+    shape_model: lgb.LGBMRegressor | None = None         # forma zilei, pentru semnalul de baterie (fit_shape)
+    shape_features: list[str] | None = None
 
     def save(self, directory: str | Path = "models") -> Path:
         path = Path(directory)
@@ -146,8 +169,12 @@ def forecast_day(bundle: ModelBundle, inputs: pd.DataFrame, prices: pd.DataFrame
     lo, hi = (conformal or bundle.conformal).interval(pred)   # `conformal`: calibrare pe erorile recente
     mean7d = pd.Series(X["price_rolling_mean_7d"].to_numpy(), index=idx)
     blend = (0.5 * pred + 0.5 * mean7d).where(mean7d.notna(), pred)
+    shape = None
+    if getattr(bundle, "shape_model", None) is not None and all(c in X for c in bundle.shape_features):
+        shape = pd.Series(bundle.shape_model.predict(X[bundle.shape_features]), index=idx)
     out = pd.DataFrame({"predicted_price": pred, "ci_lower": lo, "ci_upper": hi,
-                        "mean7d_price": mean7d, "blend_price": blend})
+                        "mean7d_price": mean7d, "blend_price": blend,
+                        "battery_price": battery_signal(pred, shape, mean7d)})
     out["model_version"] = bundle.version
     out["variant"] = variant
     return out

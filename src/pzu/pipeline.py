@@ -169,11 +169,13 @@ def refresh_model(engine, bundle: M.ModelBundle, now: pd.Timestamp | None = None
     fallback = M.fit_pair(X[keep], y[keep], cols=fb_cols)
     nowx_cols = [c for c in bundle.features if not c.startswith("wx_")]
     nowx = M.fit_pair(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(bundle.features) else None
+    shape = M.fit_shape(X[keep], y[keep], cols=bundle.features)
     version = f"v3-{today:%Y%m%d}"
     fresh = M.ModelBundle(final, version, bundle.window_days, bundle.conformal,
                           features=bundle.features, calibrated_at=bundle.calibrated_at,
                           fallback_model=fallback, fallback_features=fb_cols,
-                          nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG)
+                          nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG,
+                          shape_model=shape, shape_features=list(bundle.features))
     db.save_model_bytes(engine, version, fresh.to_bytes())
     return fresh
 
@@ -436,10 +438,12 @@ def retrain(engine, client=None, window_days: int = M.WINDOW_DAYS, calib_days: i
     fallback = M.fit_pair(X[keep], y[keep], cols=F.BASE_PRODUCTION_FEATURES)
     nowx_cols = [c for c in main_cols if not c.startswith("wx_")]
     nowx = M.fit_pair(X[keep], y[keep], cols=nowx_cols) if len(nowx_cols) < len(main_cols) else None
+    shape = M.fit_shape(X[keep], y[keep], cols=main_cols)
     version = version or f"v3-{local_today(now):%Y%m%d}"
     bundle = M.ModelBundle(final, version, window_days, conf, calibrated_at=pd.Timestamp.now(tz="UTC").isoformat(),
                            features=main_cols, fallback_model=fallback, fallback_features=list(F.BASE_PRODUCTION_FEATURES),
-                           nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG)
+                           nowx_model=nowx, nowx_features=nowx_cols if nowx is not None else None, config=M.CONFIG,
+                           shape_model=shape, shape_features=list(main_cols))
     db.save_model_bytes(engine, version, bundle.to_bytes())
     m = backtest.evaluate(bt)["lightgbm"]
     return f"model {version} salvat (backtest {calib_days}z: MAE {m['mae']:.2f}, coverage {m.get('coverage_90', float('nan')):.2f})"

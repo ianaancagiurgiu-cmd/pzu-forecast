@@ -301,3 +301,24 @@ completează din raportul public OPCOM „Rezultate cuplare PZU” (`rapoarte-pz
 preț RO în EUR/MWh pe 15 minute, numerotat în ora pieței (CET), plus fluxurile RO↔HU, RO↔BG și ATC pe granița RO–BG
 (tabelul `opcom_results`). Nu se suprascrie nimic din ENTSO-E (`source = OPCOM`). Validat pe 19 nov: 96/96 intervale
 identice. Evaluarea folosește și ea OPCOM dacă ENTSO-E e incomplet.
+
+## Mod baterie (`scripts/battery_mode_experiment.py`, 399 de zile walk-forward): adoptat
+
+O baterie nu are nevoie de prețul exact, ci de ordinea orelor: când e cel mai ieftin (încarcă) și când e cel mai scump (descarcă).
+Am comparat mai multe semnale după câștigul simulat al unei baterii de referință (10 MW / 20 MWh, randament 85%, 1 ciclu pe zi,
+uzură 4 €/MWh, programare optimă după semnal, decontare la prețul real; `value.Battery`, `value.dispatch`).
+
+| Semnal | % din câștigul maxim | €/zi |
+|---|---|---|
+| media pe 7 zile | 80,7% | 2.341 |
+| modelul (v3) | 81,7% | 2.369 |
+| mix 50/50 | 82,2% | – |
+| **nivelul din model + forma zilei = media (model, model de formă, 7 zile)** | **82,8%** | **2.401** |
+
+Câștigul maxim (știind dinainte prețurile reale) e ~2.900 €/zi. Semnalul ales: +32 ± 17 €/zi față de model și +60 ± 21 €/zi față de media
+pe 7 zile (interval 95%, zile pereche); mai bun în ambele jumătăți ale perioadei (79,7% / 84,9%) și în ultimele 30 de zile (50,7% față de 45,2% și 42,1%).
+O regulă de „sări peste ziua slabă” nu a adus nimic: programarea optimă oricum nu face ciclul când diferența nu acoperă pierderile.
+
+În producție: `model.fit_shape` (abaterea fiecărui interval față de media zilei) se antrenează odată cu modelul (`CONFIG = "pair365-v2"`),
+coloana `battery_price` se salvează la fiecare prognoză, iar `/api/v1/battery?date=` dă programul bateriei de referință și, după publicarea
+prețului oficial, câștigul realizat, cel maxim și cel al unei programări după media pe 7 zile. Dashboard: secțiunea „Mod baterie”.
