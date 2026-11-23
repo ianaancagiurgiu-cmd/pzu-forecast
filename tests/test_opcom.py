@@ -51,3 +51,30 @@ def test_missing_ro_prices_are_filled_from_opcom_without_overwriting(tmp_path, m
     assert (got[known] == 100.0).all() and (got.drop(known) == 7.0).all()   # nimic suprascris
     assert asked == ["2026-11-20"]                                         # doar ziua de piata cu goluri
     assert pipeline.fill_ro_from_opcom(eng, [pd.Timestamp(day).date()]) == 0   # complet: nu mai cere nimic
+
+
+def test_snapshot_is_used_when_opcom_blocks(tmp_path, monkeypatch):
+    eng = db.get_engine(f"sqlite:///{tmp_path/'s.db'}")
+    db.init_db(eng)
+    day = "2026-11-21"
+    t = pd.date_range(pd.Timestamp("2026-11-20", tz=opcom.MARKET_TZ), periods=96 * 2, freq="15min").tz_convert("UTC")
+    snap = pd.DataFrame({c: np.full(len(t), 5.0) for c in opcom.COLS}, index=t).rename_axis("timestamp")
+    monkeypatch.setattr(opcom, "fetch_market_results", lambda *a, **k: pd.DataFrame(columns=opcom.COLS))
+    monkeypatch.setattr(opcom, "load_snapshot", lambda *a, **k: snap)
+    assert pipeline.fill_ro_from_opcom(eng, [pd.Timestamp(day).date()]) == 96
+    assert db.read_actual_ro(eng, day_index(day)).eq(5.0).all()
+
+
+def test_forbidden_stops_further_requests(monkeypatch):
+    calls = []
+
+    class C:
+        def get(self, url):
+            calls.append(url)
+            return type("R", (), {"status_code": 403, "text": ""})()
+
+    monkeypatch.setattr(opcom, "_blocked", False)
+    monkeypatch.setattr(opcom.time, "sleep", lambda s: None)
+    assert opcom.fetch_market_results("2026-11-20", client=C()).empty
+    assert opcom.fetch_market_results("2026-11-21", client=C()).empty
+    assert len(calls) == 1

@@ -64,8 +64,12 @@ def fill_ro_from_opcom(engine, days) -> int:
         return 0
     missing = pd.DatetimeIndex(want)
     filled = 0
+    snap = opcom.load_snapshot()
     for mday in sorted(set(missing.tz_convert(opcom.MARKET_TZ).date)):
         res = opcom.fetch_market_results(mday)
+        if res.empty and not snap.empty:   # retea blocata: folosim rezultatele OPCOM salvate in repository
+            t = snap.index.tz_convert(opcom.MARKET_TZ)
+            res = snap[pd.Series(t.date, index=snap.index) == mday]
         if res.empty:
             continue
         db.upsert_df(engine, db.opcom_results, res.reset_index(), ["timestamp"])
